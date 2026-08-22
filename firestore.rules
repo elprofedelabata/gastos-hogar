@@ -1,0 +1,19 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isHouseholdMember(householdId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
+    }
+
+    match /households/{householdId}/expenses/{expenseId} {
+      allow read, create, update, delete: if isHouseholdMember(householdId);
+    }
+
+    match /households/{householdId}/members/{memberId} {
+      allow read: if isHouseholdMember(householdId);
+      allow write: if false;
+    }
+  }
+}

@@ -13,10 +13,10 @@
 # testing
 /coverage
 
-# next.js
+# legacy/local framework caches
 /.next/
 /.vinext/
-/out/
+/.wrangler/
 
 # misc
 .DS_Store
@@ -32,10 +32,6 @@ yarn-error.log*
 .env*
 !.env.example
 
-# vercel
-.vercel
-
 /dist/
-/.wrangler/
 /outputs/
 /work/

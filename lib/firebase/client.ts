@@ -1,5 +1,10 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth, type Auth } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  getAuth,
+  setPersistence,
+  type Auth,
+} from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
 type FirebaseClient = {
@@ -9,13 +14,17 @@ type FirebaseClient = {
 };
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
+
+let cachedClient: FirebaseClient | null | undefined;
+
+export const householdId = import.meta.env.VITE_FIREBASE_HOUSEHOLD_ID || "main";
 
 export function isFirebaseConfigured(): boolean {
   return Boolean(
@@ -27,12 +36,20 @@ export function isFirebaseConfigured(): boolean {
 }
 
 export function getFirebaseClient(): FirebaseClient | null {
-  if (!isFirebaseConfigured()) return null;
+  if (cachedClient !== undefined) return cachedClient;
+  if (!isFirebaseConfigured()) {
+    cachedClient = null;
+    return cachedClient;
+  }
 
   const app = getApps()[0] ?? initializeApp(firebaseConfig);
-  return {
+  const auth = getAuth(app);
+  void setPersistence(auth, browserLocalPersistence);
+
+  cachedClient = {
     app,
-    auth: getAuth(app),
+    auth,
     database: getFirestore(app),
   };
+  return cachedClient;
 }
