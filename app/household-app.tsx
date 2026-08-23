@@ -355,8 +355,6 @@ export function HouseholdApp() {
                   </section>
                 </div>
 
-                <button type="button" className="primary-action" onClick={openExpense}><Plus aria-hidden="true" /> Añadir gasto</button>
-
                 <section className="movements-section" aria-labelledby="recent-title">
                   <div className="section-heading"><h2 id="recent-title">Movimientos recientes</h2><button type="button" className="text-action" disabled>Ver todos</button></div>
                   <div className="movement-list">

@@ -325,7 +325,6 @@ h2 {
   font-size: 0.8rem;
 }
 
-.primary-action,
 .save-action {
   display: flex;
   width: 100%;
@@ -342,11 +341,6 @@ h2 {
   box-shadow: 0 10px 22px rgba(23, 107, 85, 0.18);
 }
 
-.primary-action {
-  margin-top: 14px;
-}
-
-.primary-action:hover,
 .save-action:hover,
 .nav-add:hover,
 .avatar-button:hover {
@@ -923,13 +917,6 @@ h2 {
     margin-top: 0;
   }
 
-  .primary-action {
-    width: auto;
-    min-width: 210px;
-    margin-left: auto;
-    padding-inline: 24px;
-  }
-
   .editor-header {
     padding: 34px 28px 16px;
   }
@@ -1023,7 +1010,6 @@ h2 {
     transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
   }
 
-  .primary-action:active,
   .save-action:active,
   .nav-add:active {
     transform: scale(0.98);
