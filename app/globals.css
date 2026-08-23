@@ -379,6 +379,15 @@ h2 {
   background: rgba(23, 107, 85, 0.045);
 }
 
+.movement-row.is-settlement .category-mark {
+  color: #9b5b16;
+  background: #fff1dd;
+}
+
+.movement-row.is-settlement .movement-amount {
+  color: var(--accent);
+}
+
 .movement-main {
   min-width: 0;
   gap: 11px;
@@ -460,6 +469,134 @@ h2 {
 
 .movements-all {
   margin-top: 22px;
+}
+
+.accounts-page {
+  padding-top: 2px;
+}
+
+.accounts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.account-card > header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.account-card > header strong {
+  font-size: 0.9rem;
+}
+
+.account-card dl {
+  margin: 0;
+}
+
+.account-card dl > div {
+  min-width: 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.account-card dt {
+  margin-bottom: 3px;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.account-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(0.86rem, 4vw, 1rem);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-balance {
+  margin: 10px -6px -6px;
+  padding: 11px 10px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.account-balance span,
+.account-balance strong {
+  display: block;
+}
+
+.account-balance span {
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.account-balance strong {
+  font-size: clamp(1rem, 5vw, 1.25rem);
+  font-variant-numeric: tabular-nums;
+}
+
+.account-balance .is-positive,
+.expense-balance-impact .is-positive {
+  color: var(--positive);
+}
+
+.account-balance .is-negative,
+.expense-balance-impact .is-negative {
+  color: var(--negative);
+}
+
+.accounts-status {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.accounts-status.is-settled {
+  background: var(--surface-soft);
+}
+
+.accounts-status-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.accounts-status h2 {
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.accounts-status p:last-child {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.accounts-settle-action {
+  grid-column: 1 / -1;
+  margin-top: 4px;
 }
 
 .expense-dialog {
@@ -612,12 +749,77 @@ h2 {
   font-size: 0.8rem;
 }
 
-.expense-balance-impact .is-positive {
-  color: var(--positive);
+.settlement-transfer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--screen);
 }
 
-.expense-balance-impact .is-negative {
-  color: var(--negative);
+.settlement-transfer > div {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.settlement-transfer strong,
+.settlement-transfer small {
+  display: block;
+}
+
+.settlement-transfer strong {
+  font-size: 0.86rem;
+}
+
+.settlement-transfer small {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.settlement-transfer-arrow {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--surface-soft);
+}
+
+.settlement-confirm-copy {
+  margin: 22px 0 8px;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.settlement-confirm-note {
+  margin-bottom: 20px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.settlement-dialog-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 10px;
+}
+
+.secondary-action {
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 650;
+  cursor: pointer;
 }
 
 .access-frame {
@@ -963,7 +1165,8 @@ h2 {
 }
 
 .view-home .app-surface,
-.view-movements .app-surface {
+.view-movements .app-surface,
+.view-accounts .app-surface {
   padding-bottom: calc(57px + max(12px, env(safe-area-inset-bottom)));
 }
 
@@ -1137,7 +1340,8 @@ h2 {
   }
 
   .view-home .app-surface,
-  .view-movements .app-surface {
+  .view-movements .app-surface,
+  .view-accounts .app-surface {
     padding-bottom: 0;
   }
 
@@ -1231,5 +1435,10 @@ h2 {
 
   .budget-track {
     background: #2f3d38;
+  }
+
+  .movement-row.is-settlement .category-mark {
+    color: #f2bd79;
+    background: #3b2b1d;
   }
 }

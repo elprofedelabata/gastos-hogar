@@ -24,16 +24,26 @@ import {
 
 export type Expense = {
   id: string;
+  kind: "expense" | "settlement";
   name: string;
   category: string;
   date: string;
   amountCents: number;
   payments: MoneyShares;
   allocations: MoneyShares;
+  settlementFromProfileId?: string;
+  settlementToProfileId?: string;
   createdAtMillis: number;
 };
 
-export type ExpenseDraftRecord = Omit<Expense, "id" | "createdAtMillis">;
+export type ExpenseDraftRecord = Omit<Expense, "id" | "kind" | "createdAtMillis" | "settlementFromProfileId" | "settlementToProfileId">;
+
+export type SettlementDraftRecord = {
+  date: string;
+  amountCents: number;
+  fromProfileId: string;
+  toProfileId: string;
+};
 
 export type ExpenseStoreMode =
   | "local"
@@ -47,6 +57,7 @@ const LOCAL_STORAGE_KEY = "mi-casa-expenses-v1";
 const demoExpenses: Expense[] = [
   {
     id: "demo-mercadona",
+    kind: "expense",
     name: "Mercadona",
     category: "Supermercado",
     date: "2026-08-22",
@@ -57,6 +68,7 @@ const demoExpenses: Expense[] = [
   },
   {
     id: "demo-electricidad",
+    kind: "expense",
     name: "Electricidad",
     category: "Suministros",
     date: "2026-08-21",
@@ -67,6 +79,7 @@ const demoExpenses: Expense[] = [
   },
   {
     id: "demo-internet",
+    kind: "expense",
     name: "Internet",
     category: "Suministros",
     date: "2026-08-18",
@@ -82,7 +95,9 @@ function loadLocalExpenses(): Expense[] {
     const serialized = window.localStorage.getItem(LOCAL_STORAGE_KEY);
     if (!serialized) return demoExpenses;
     const parsed = JSON.parse(serialized) as Expense[];
-    return Array.isArray(parsed) ? parsed : demoExpenses;
+    return Array.isArray(parsed)
+      ? parsed.map((expense) => ({ ...expense, kind: expense.kind === "settlement" ? "settlement" : "expense" }))
+      : demoExpenses;
   } catch {
     return demoExpenses;
   }
@@ -100,12 +115,15 @@ function expenseFromDocument(snapshot: QueryDocumentSnapshot<DocumentData>): Exp
   const data = snapshot.data();
   return {
     id: snapshot.id,
+    kind: data.kind === "settlement" ? "settlement" : "expense",
     name: String(data.name ?? data.category ?? "Gasto"),
     category: String(data.category ?? "Otros"),
     date: String(data.date ?? ""),
     amountCents: Number(data.amountCents ?? 0),
     payments: (data.payments ?? {}) as MoneyShares,
     allocations: (data.allocations ?? {}) as MoneyShares,
+    settlementFromProfileId: data.settlementFromProfileId ? String(data.settlementFromProfileId) : undefined,
+    settlementToProfileId: data.settlementToProfileId ? String(data.settlementToProfileId) : undefined,
     createdAtMillis:
       typeof data.createdAt?.toMillis === "function"
         ? data.createdAt.toMillis()
@@ -171,6 +189,7 @@ export function useExpenses() {
       if (!configured) {
         const expense: Expense = {
           ...draft,
+          kind: "expense",
           id: `expense-${crypto.randomUUID()}`,
           createdAtMillis: Date.now(),
         };
@@ -189,6 +208,50 @@ export function useExpenses() {
         collection(client.database, "households", householdId, "expenses"),
         {
           ...draft,
+          kind: "expense",
+          createdAt: serverTimestamp(),
+          createdBy: client.auth.currentUser.uid,
+        },
+      );
+    },
+    [configured],
+  );
+
+  const addSettlement = useCallback(
+    async (draft: SettlementDraftRecord) => {
+      const record = {
+        kind: "settlement" as const,
+        name: "Ajuste de cuentas",
+        category: "Ajuste",
+        date: draft.date,
+        amountCents: draft.amountCents,
+        payments: {},
+        allocations: {},
+        settlementFromProfileId: draft.fromProfileId,
+        settlementToProfileId: draft.toProfileId,
+      };
+
+      if (!configured) {
+        const settlement: Expense = {
+          ...record,
+          id: `settlement-${crypto.randomUUID()}`,
+          createdAtMillis: Date.now(),
+        };
+        setExpenses((current) => {
+          const next = [settlement, ...current];
+          saveLocalExpenses(next);
+          return next;
+        });
+        return;
+      }
+
+      const client = getFirebaseClient();
+      if (!client?.auth.currentUser) throw new Error("La sesión familiar ha caducado");
+
+      await addDoc(
+        collection(client.database, "households", householdId, "expenses"),
+        {
+          ...record,
           createdAt: serverTimestamp(),
           createdBy: client.auth.currentUser.uid,
         },
@@ -221,6 +284,7 @@ export function useExpenses() {
     error,
     isFirebaseConfigured: configured,
     addExpense,
+    addSettlement,
     signIn,
     signOut,
   };

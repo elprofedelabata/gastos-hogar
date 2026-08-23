@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  ArrowLeftRight,
   ArrowRight,
   CalendarDays,
   Check,
@@ -83,6 +84,19 @@ function paidBy(expense: Expense) {
   );
 }
 
+function movementBalanceDeltaFor(profileId: string, movement: Expense) {
+  if (movement.kind === "settlement") {
+    if (movement.settlementFromProfileId === profileId) return movement.amountCents;
+    if (movement.settlementToProfileId === profileId) return -movement.amountCents;
+    return 0;
+  }
+  return balanceDeltaFor(profileId, movement.payments, movement.allocations);
+}
+
+function settlementDescription(movement: Expense) {
+  return `${profileName(movement.settlementFromProfileId ?? "")} → ${profileName(movement.settlementToProfileId ?? "")}`;
+}
+
 function signedEuros(cents: number) {
   if (cents === 0) return formatEuros(0);
   return `${cents > 0 ? "+" : "−"}${formatEuros(Math.abs(cents))}`;
@@ -96,6 +110,7 @@ function differenceMessage(difference: number, label: string) {
 }
 
 function categoryIcon(category: string) {
+  if (category === "Ajuste") return <ArrowLeftRight />;
   if (category === "Supermercado") return <ShoppingBasket />;
   if (category === "Suministros") return <Zap />;
   if (category === "Vivienda") return <House />;
@@ -125,13 +140,15 @@ type MovementRowProps = {
 };
 
 function MovementRow({ expense, onOpen }: MovementRowProps) {
+  const isSettlement = expense.kind === "settlement";
+
   return (
-    <button className="movement-row" type="button" onClick={() => onOpen(expense)}>
+    <button className={`movement-row${isSettlement ? " is-settlement" : ""}`} type="button" onClick={() => onOpen(expense)}>
       <span className="movement-main">
         <span className="category-mark" aria-hidden="true">{categoryIcon(expense.category)}</span>
-        <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · pagado por {paidBy(expense)}</small></span>
+        <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · {isSettlement ? settlementDescription(expense) : `pagado por ${paidBy(expense)}`}</small></span>
       </span>
-      <span className="movement-amount">−{formatEuros(expense.amountCents)}</span>
+      <span className="movement-amount">{isSettlement ? formatEuros(expense.amountCents) : `−${formatEuros(expense.amountCents)}`}</span>
     </button>
   );
 }
@@ -144,9 +161,12 @@ type ExpenseDetailModalProps = {
 function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const isSettlement = expense.kind === "settlement";
   const paymentEntries = Object.entries(expense.payments).filter(([, cents]) => cents > 0);
   const allocationEntries = Object.entries(expense.allocations).filter(([, cents]) => cents > 0);
-  const currentBalanceImpact = balanceDeltaFor(currentProfileId, expense.payments, expense.allocations);
+  const currentBalanceImpact = movementBalanceDeltaFor(currentProfileId, expense);
+  const settlementFrom = profileFor(expense.settlementFromProfileId ?? "");
+  const settlementTo = profileFor(expense.settlementToProfileId ?? "");
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -170,30 +190,89 @@ function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
           <button ref={closeButtonRef} type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar detalle"><X aria-hidden="true" /></button>
         </header>
 
-        <p className="expense-dialog-amount">−{formatEuros(expense.amountCents)}</p>
+        <p className="expense-dialog-amount">{isSettlement ? "" : "−"}{formatEuros(expense.amountCents)}</p>
         <p className="expense-dialog-date"><CalendarDays aria-hidden="true" /> {fullMovementDate(expense.date)}</p>
 
-        <div className="expense-detail-grid">
-          <section className="expense-detail-section" aria-labelledby="detail-payments-title">
-            <h3 id="detail-payments-title">Pagado por</h3>
-            {paymentEntries.map(([profileId, cents]) => {
-              const profile = profileFor(profileId);
-              const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
-              return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span><strong>{formatEuros(cents)}</strong></div>;
-            })}
+        {isSettlement ? (
+          <section className="settlement-transfer" aria-label="Transferencia registrada">
+            <div><span className="person-avatar">{settlementFrom.initial}</span><strong>{settlementFrom.name}</strong><small>Paga</small></div>
+            <span className="settlement-transfer-arrow" aria-hidden="true"><ArrowRight /></span>
+            <div><span className="person-avatar">{settlementTo.initial}</span><strong>{settlementTo.name}</strong><small>Recibe</small></div>
           </section>
+        ) : (
+          <div className="expense-detail-grid">
+            <section className="expense-detail-section" aria-labelledby="detail-payments-title">
+              <h3 id="detail-payments-title">Pagado por</h3>
+              {paymentEntries.map(([profileId, cents]) => {
+                const profile = profileFor(profileId);
+                const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
+                return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span><strong>{formatEuros(cents)}</strong></div>;
+              })}
+            </section>
 
-          <section className="expense-detail-section" aria-labelledby="detail-allocations-title">
-            <h3 id="detail-allocations-title">Repartido entre</h3>
-            {allocationEntries.map(([profileId, cents]) => {
-              const profile = profileFor(profileId);
-              const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
-              return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span><strong>{formatEuros(cents)}</strong></div>;
-            })}
-          </section>
+            <section className="expense-detail-section" aria-labelledby="detail-allocations-title">
+              <h3 id="detail-allocations-title">Repartido entre</h3>
+              {allocationEntries.map(([profileId, cents]) => {
+                const profile = profileFor(profileId);
+                const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
+                return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span><strong>{formatEuros(cents)}</strong></div>;
+              })}
+            </section>
+          </div>
+        )}
+
+        <div className="expense-balance-impact"><span>{isSettlement ? "Cambio en el balance de Dani" : "Impacto en el balance de Dani"}</span><strong className={currentBalanceImpact >= 0 ? "is-positive" : "is-negative"}>{signedEuros(currentBalanceImpact)}</strong></div>
+      </div>
+    </dialog>
+  );
+}
+
+type SettlementProposal = {
+  from: Profile;
+  to: Profile;
+  amountCents: number;
+};
+
+type SettlementConfirmModalProps = {
+  proposal: SettlementProposal;
+  saving: boolean;
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+};
+
+function SettlementConfirmModal({ proposal, saving, onConfirm, onClose }: SettlementConfirmModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      cancelButtonRef.current?.focus();
+    }
+  }, []);
+
+  function requestClose() {
+    if (!saving) dialogRef.current?.close();
+  }
+
+  return (
+    <dialog ref={dialogRef} className="expense-dialog settlement-dialog" aria-labelledby="settlement-confirm-title" onClose={onClose}>
+      <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cancelar ajuste" disabled={saving} />
+      <div className="expense-dialog-content">
+        <header className="expense-dialog-header">
+          <span className="expense-dialog-icon" aria-hidden="true"><ArrowLeftRight /></span>
+          <div><p className="eyebrow">Ajustar cuentas</p><h2 id="settlement-confirm-title">Confirmar el pago</h2></div>
+          <button type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar confirmación" disabled={saving}><X aria-hidden="true" /></button>
+        </header>
+
+        <p className="settlement-confirm-copy"><strong>{proposal.from.name}</strong> pagará <strong>{formatEuros(proposal.amountCents)}</strong> a <strong>{proposal.to.name}</strong>.</p>
+        <p className="settlement-confirm-note">Se añadirá un movimiento de ajuste y las cuentas quedarán saldadas. Este importe no contará como gasto del mes.</p>
+
+        <div className="settlement-dialog-actions">
+          <button ref={cancelButtonRef} type="button" className="secondary-action" onClick={requestClose} disabled={saving}>Cancelar</button>
+          <button type="button" className="save-action" onClick={() => void onConfirm()} disabled={saving}>{saving ? "Registrando…" : "Confirmar ajuste"}</button>
         </div>
-
-        <div className="expense-balance-impact"><span>Impacto en el balance de Dani</span><strong className={currentBalanceImpact >= 0 ? "is-positive" : "is-negative"}>{signedEuros(currentBalanceImpact)}</strong></div>
       </div>
     </dialog>
   );
@@ -276,9 +355,11 @@ function AccessScreen({ mode, onSignIn }: AccessScreenProps) {
 }
 
 export function HouseholdApp() {
-  const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, signIn, signOut } = useExpenses();
-  const [view, setView] = useState<"home" | "movements" | "expense">("home");
+  const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, signIn, signOut } = useExpenses();
+  const [view, setView] = useState<"home" | "movements" | "accounts" | "expense">("home");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [settlementOpen, setSettlementOpen] = useState(false);
+  const [savingSettlement, setSavingSettlement] = useState(false);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [total, setTotal] = useState("48.60");
@@ -298,6 +379,7 @@ export function HouseholdApp() {
     () => [...expenses].sort((left, right) => right.date.localeCompare(left.date) || right.createdAtMillis - left.createdAtMillis),
     [expenses],
   );
+  const expenseMovements = sortedExpenses.filter((expense) => expense.kind === "expense");
   const payments = useMemo(() => valuesToShares(paymentValues), [paymentValues]);
   const allocations = useMemo(() => valuesToShares(allocationValues), [allocationValues]);
   const validation = useMemo(
@@ -305,13 +387,24 @@ export function HouseholdApp() {
     [totalCents, payments, allocations],
   );
   const currentMonth = localDateValue().slice(0, 7);
-  const monthlyExpenses = expenses.filter((expense) => expense.date.startsWith(currentMonth));
+  const monthlyExpenses = expenseMovements.filter((expense) => expense.date.startsWith(currentMonth));
   const monthlyTotalCents = monthlyExpenses.reduce((sum, expense) => sum + expense.amountCents, 0);
   const budgetPercent = Math.min(100, Math.round((monthlyTotalCents / monthlyBudgetCents) * 100));
-  const currentBalanceCents = monthlyExpenses.reduce(
-    (sum, expense) => sum + balanceDeltaFor(currentProfileId, expense.payments, expense.allocations),
+  const currentBalanceCents = sortedExpenses.reduce(
+    (sum, expense) => sum + movementBalanceDeltaFor(currentProfileId, expense),
     0,
   );
+  const accountSummaries = profiles.map((profile) => ({
+    profile,
+    paidCents: expenseMovements.reduce((sum, expense) => sum + (expense.payments[profile.id] ?? 0), 0),
+    allocatedCents: expenseMovements.reduce((sum, expense) => sum + (expense.allocations[profile.id] ?? 0), 0),
+    balanceCents: sortedExpenses.reduce((sum, expense) => sum + movementBalanceDeltaFor(profile.id, expense), 0),
+  }));
+  const debtor = accountSummaries.find((account) => account.balanceCents < 0);
+  const creditor = accountSummaries.find((account) => account.balanceCents > 0);
+  const settlementProposal: SettlementProposal | null = debtor && creditor
+    ? { from: debtor.profile, to: creditor.profile, amountCents: Math.min(Math.abs(debtor.balanceCents), creditor.balanceCents) }
+    : null;
   const remainingPayers = profiles.filter((profile) => !payerIds.includes(profile.id));
 
   useEffect(() => {
@@ -339,6 +432,13 @@ export function HouseholdApp() {
     setNotice("");
     setSelectedExpense(null);
     setView("movements");
+  }
+
+  function openAccounts() {
+    setNotice("");
+    setSelectedExpense(null);
+    setSettlementOpen(false);
+    setView("accounts");
   }
 
   function updateTotal(nextValue: string) {
@@ -406,6 +506,26 @@ export function HouseholdApp() {
     }
   }
 
+  async function confirmSettlement() {
+    if (!settlementProposal || savingSettlement) return;
+    setSavingSettlement(true);
+    try {
+      await addSettlement({
+        date: localDateValue(),
+        amountCents: settlementProposal.amountCents,
+        fromProfileId: settlementProposal.from.id,
+        toProfileId: settlementProposal.to.id,
+      });
+      setSettlementOpen(false);
+      setNotice(`Ajuste registrado: ${settlementProposal.from.name} ha pagado a ${settlementProposal.to.name}`);
+    } catch {
+      setSettlementOpen(false);
+      setNotice("No se ha podido registrar el ajuste");
+    } finally {
+      setSavingSettlement(false);
+    }
+  }
+
   const validationMessages = [
     differenceMessage(validation.paymentDifference, "pagadores"),
     differenceMessage(validation.allocationDifference, "el reparto"),
@@ -457,7 +577,7 @@ export function HouseholdApp() {
                       <p className="balance-amount">{signedEuros(currentBalanceCents)}</p>
                       <p className="supporting-copy">{currentBalanceCents >= 0 ? "A tu favor" : "Pendiente de aportar"}</p>
                     </div>
-                    <button type="button" className="text-action" disabled>Ver cuentas <ArrowRight aria-hidden="true" /></button>
+                    <button type="button" className="text-action" onClick={openAccounts}>Ver cuentas <ArrowRight aria-hidden="true" /></button>
                   </section>
                 </div>
 
@@ -490,7 +610,7 @@ export function HouseholdApp() {
               <div className="page-content movements-page">
                 {storeError ? <div className="error-notice" role="alert">No podemos sincronizar ahora. Comprueba el acceso de Firebase.</div> : null}
                 <section className="movements-summary" aria-label="Resumen de movimientos">
-                  <div><p className="card-label">Total registrado</p><strong>{formatEuros(sortedExpenses.reduce((sum, expense) => sum + expense.amountCents, 0))}</strong></div>
+                  <div><p className="card-label">Gastos registrados</p><strong>{formatEuros(expenseMovements.reduce((sum, expense) => sum + expense.amountCents, 0))}</strong></div>
                   <span>{sortedExpenses.length} {sortedExpenses.length === 1 ? "movimiento" : "movimientos"}</span>
                 </section>
                 <section className="movements-section movements-all" aria-labelledby="all-movements-title">
@@ -500,6 +620,50 @@ export function HouseholdApp() {
                       ? sortedExpenses.map((expense) => <MovementRow expense={expense} onOpen={setSelectedExpense} key={expense.id} />)
                       : <p className="empty-state">Todavía no hay movimientos registrados.</p>}
                   </div>
+                </section>
+              </div>
+            </>
+          ) : view === "accounts" ? (
+            <>
+              <header className="topbar accounts-header">
+                <div><p className="eyebrow">Balance compartido</p><h1>Cuentas</h1></div>
+                <div className="profile-tools">
+                  <span className={`sync-badge is-${mode}`}>{modeLabel(mode)}</span>
+                  <button
+                    className="avatar-button"
+                    type="button"
+                    onClick={isFirebaseConfigured ? () => void signOut() : undefined}
+                    aria-label={isFirebaseConfigured ? "Cerrar sesión familiar" : "Perfil de Dani"}
+                    title={isFirebaseConfigured ? "Cerrar sesión" : "Perfil de Dani"}
+                  >D</button>
+                </div>
+              </header>
+
+              <div className="page-content accounts-page">
+                {notice ? <div className="success-notice" role="status"><Check aria-hidden="true" />{notice}</div> : null}
+                {storeError ? <div className="error-notice" role="alert">No podemos sincronizar ahora. Comprueba el acceso de Firebase.</div> : null}
+
+                <div className="accounts-grid">
+                  {accountSummaries.map(({ profile, paidCents, allocatedCents, balanceCents }) => (
+                    <section className="account-card" aria-label={`Cuenta de ${profile.name}`} key={profile.id}>
+                      <header><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong></header>
+                      <dl>
+                        <div><dt>Ha pagado</dt><dd>{formatEuros(paidCents)}</dd></div>
+                        <div><dt>Le correspondía</dt><dd>{formatEuros(allocatedCents)}</dd></div>
+                      </dl>
+                      <div className="account-balance"><span>Balance</span><strong className={balanceCents >= 0 ? "is-positive" : "is-negative"}>{signedEuros(balanceCents)}</strong></div>
+                    </section>
+                  ))}
+                </div>
+
+                <section className={`accounts-status${settlementProposal ? " has-debt" : " is-settled"}`} aria-live="polite">
+                  <span className="accounts-status-icon" aria-hidden="true">{settlementProposal ? <Scale /> : <Check />}</span>
+                  <div>
+                    <p className="eyebrow">{settlementProposal ? "Saldo pendiente" : "Todo en orden"}</p>
+                    <h2>{settlementProposal ? <>{settlementProposal.from.name} debe pagar {formatEuros(settlementProposal.amountCents)} a {settlementProposal.to.name}</> : "Las cuentas están al día"}</h2>
+                    <p>{settlementProposal ? "Registra el pago cuando se haya realizado para dejar el balance a cero." : "No hay pagos pendientes entre Dani y Tati."}</p>
+                  </div>
+                  <button type="button" className="save-action accounts-settle-action" onClick={() => setSettlementOpen(true)} disabled={!settlementProposal}>Ajustar cuentas</button>
                 </section>
               </div>
             </>
@@ -582,11 +746,12 @@ export function HouseholdApp() {
           <button type="button" aria-current={view === "home" ? "page" : undefined} onClick={openHome}><House aria-hidden="true" />Inicio</button>
           <button type="button" aria-current={view === "movements" ? "page" : undefined} onClick={openMovements}><List aria-hidden="true" />Movimientos</button>
           <button type="button" className="nav-add" onClick={openExpense} aria-label="Añadir gasto"><Plus aria-hidden="true" /></button>
-          <button type="button" disabled><Scale aria-hidden="true" />Cuentas</button>
+          <button type="button" aria-current={view === "accounts" ? "page" : undefined} onClick={openAccounts}><Scale aria-hidden="true" />Cuentas</button>
           <button type="button" disabled><Menu aria-hidden="true" />Más</button>
         </nav>
       </section>
       {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} onClose={() => setSelectedExpense(null)} /> : null}
+      {settlementOpen && settlementProposal ? <SettlementConfirmModal proposal={settlementProposal} saving={savingSettlement} onConfirm={confirmSettlement} onClose={() => setSettlementOpen(false)} /> : null}
     </main>
   );
 }
