@@ -31,19 +31,20 @@ npm test
 npm run lint
 ```
 
-## Configurar Firebase
+## Firebase
 
-1. Crea un proyecto gratuito en Firebase.
-2. Registra una aplicación web.
-3. Activa Authentication con correo y contraseña.
-4. Crea manualmente la cuenta familiar en Authentication.
-5. Activa Cloud Firestore.
-6. Copia `.env.example` como `.env.local` y completa las variables
-   `VITE_FIREBASE_*`.
-7. En Firestore crea el documento
-   `households/main/members/UID_DE_LA_CUENTA` con el campo `role: "admin"`.
-8. Copia `.firebaserc.example` como `.firebaserc`, sustituye el identificador
-   del proyecto y publica las reglas con `firebase deploy --only firestore`.
+El entorno principal usa el proyecto `mi-casa-gastos-dani`, con Authentication
+por correo y contraseña y una base de datos Firestore en Europa. Las reglas
+solo permiten acceder a quienes tengan un documento de miembro dentro del
+hogar.
+
+Para trabajar desde otro equipo, copia `.env.example` como `.env.local` y
+completa las variables `VITE_FIREBASE_*` con la configuración de la aplicación
+web. Para volver a publicar la configuración del backend:
+
+```bash
+npx firebase-tools deploy --only auth,firestore
+```
 
 La aplicación nunca incluye contraseñas ni credenciales administrativas.
 La configuración web de Firebase identifica el proyecto; Authentication y
@@ -54,16 +55,13 @@ La configuración web de Firebase identifica el proyecto; Authentication y
 El flujo `.github/workflows/deploy-pages.yml` construye y publica la PWA con
 cada cambio de la rama `main`.
 
-En el repositorio:
+GitHub Pages ya está configurado para usar Actions. Si se crea otro repositorio,
+añade estos secretos:
 
-1. Activa **Settings → Pages → Source → GitHub Actions**.
-2. Añade estos secretos de Actions:
-   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
+1. `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
    `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`,
    `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` y
    `VITE_FIREBASE_HOUSEHOLD_ID` con valor `main`.
-3. Añade el dominio `TU_USUARIO.github.io` a **Authentication → Settings →
-   Authorized domains** en Firebase.
 
 Sin esos secretos, la versión publicada funciona en modo local y conserva los
 gastos únicamente en el navegador utilizado.
