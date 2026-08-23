@@ -41,7 +41,7 @@ type Profile = {
 
 const profiles: Profile[] = [
   { id: "dani", name: "Dani", initial: "D" },
-  { id: "ana", name: "Ana", initial: "A" },
+  { id: "ana", name: "Tati", initial: "T" },
 ];
 
 const currentProfileId = "dani";
