@@ -1,5 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -70,6 +69,10 @@ function profileName(profileId: string) {
   return profiles.find((profile) => profile.id === profileId)?.name ?? "Persona";
 }
 
+function profileFor(profileId: string): Profile {
+  return profiles.find((profile) => profile.id === profileId) ?? { id: profileId, name: "Persona", initial: "?" };
+}
+
 function joinedProfileNames(profileIds: string[]) {
   return profileIds.map(profileName).join(" y ");
 }
@@ -92,11 +95,11 @@ function differenceMessage(difference: number, label: string) {
     : `Sobran ${formatEuros(Math.abs(difference))} en ${label}`;
 }
 
-function iconForCategory(category: string): LucideIcon {
-  if (category === "Supermercado") return ShoppingBasket;
-  if (category === "Suministros") return Zap;
-  if (category === "Vivienda") return House;
-  return ReceiptText;
+function categoryIcon(category: string) {
+  if (category === "Supermercado") return <ShoppingBasket />;
+  if (category === "Suministros") return <Zap />;
+  if (category === "Vivienda") return <House />;
+  return <ReceiptText />;
 }
 
 function movementDate(date: string) {
@@ -108,6 +111,92 @@ function movementDate(date: string) {
   const parsed = new Date(`${date}T12:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short" }).format(parsed);
+}
+
+function fullMovementDate(date: string) {
+  const parsed = new Date(`${date}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric" }).format(parsed);
+}
+
+type MovementRowProps = {
+  expense: Expense;
+  onOpen: (expense: Expense) => void;
+};
+
+function MovementRow({ expense, onOpen }: MovementRowProps) {
+  return (
+    <button className="movement-row" type="button" onClick={() => onOpen(expense)}>
+      <span className="movement-main">
+        <span className="category-mark" aria-hidden="true">{categoryIcon(expense.category)}</span>
+        <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · pagado por {paidBy(expense)}</small></span>
+      </span>
+      <span className="movement-amount">−{formatEuros(expense.amountCents)}</span>
+    </button>
+  );
+}
+
+type ExpenseDetailModalProps = {
+  expense: Expense;
+  onClose: () => void;
+};
+
+function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const paymentEntries = Object.entries(expense.payments).filter(([, cents]) => cents > 0);
+  const allocationEntries = Object.entries(expense.allocations).filter(([, cents]) => cents > 0);
+  const currentBalanceImpact = balanceDeltaFor(currentProfileId, expense.payments, expense.allocations);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      closeButtonRef.current?.focus();
+    }
+  }, []);
+
+  function requestClose() {
+    dialogRef.current?.close();
+  }
+
+  return (
+    <dialog ref={dialogRef} className="expense-dialog" aria-labelledby="expense-detail-title" onClose={onClose}>
+      <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cerrar detalle" />
+      <div className="expense-dialog-content">
+        <header className="expense-dialog-header">
+          <span className="expense-dialog-icon" aria-hidden="true">{categoryIcon(expense.category)}</span>
+          <div><p className="eyebrow">{expense.category}</p><h2 id="expense-detail-title">{expense.name}</h2></div>
+          <button ref={closeButtonRef} type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar detalle"><X aria-hidden="true" /></button>
+        </header>
+
+        <p className="expense-dialog-amount">−{formatEuros(expense.amountCents)}</p>
+        <p className="expense-dialog-date"><CalendarDays aria-hidden="true" /> {fullMovementDate(expense.date)}</p>
+
+        <div className="expense-detail-grid">
+          <section className="expense-detail-section" aria-labelledby="detail-payments-title">
+            <h3 id="detail-payments-title">Pagado por</h3>
+            {paymentEntries.map(([profileId, cents]) => {
+              const profile = profileFor(profileId);
+              const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
+              return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span><strong>{formatEuros(cents)}</strong></div>;
+            })}
+          </section>
+
+          <section className="expense-detail-section" aria-labelledby="detail-allocations-title">
+            <h3 id="detail-allocations-title">Repartido entre</h3>
+            {allocationEntries.map(([profileId, cents]) => {
+              const profile = profileFor(profileId);
+              const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
+              return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span><strong>{formatEuros(cents)}</strong></div>;
+            })}
+          </section>
+        </div>
+
+        <div className="expense-balance-impact"><span>Impacto en el balance de Dani</span><strong className={currentBalanceImpact >= 0 ? "is-positive" : "is-negative"}>{signedEuros(currentBalanceImpact)}</strong></div>
+      </div>
+    </dialog>
+  );
 }
 
 function modeLabel(mode: ExpenseStoreMode) {
@@ -188,7 +277,8 @@ function AccessScreen({ mode, onSignIn }: AccessScreenProps) {
 
 export function HouseholdApp() {
   const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, signIn, signOut } = useExpenses();
-  const [view, setView] = useState<"home" | "expense">("home");
+  const [view, setView] = useState<"home" | "movements" | "expense">("home");
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [total, setTotal] = useState("48.60");
@@ -204,6 +294,10 @@ export function HouseholdApp() {
   const [allocationsAutomatic, setAllocationsAutomatic] = useState(true);
 
   const totalCents = eurosToCents(total);
+  const sortedExpenses = useMemo(
+    () => [...expenses].sort((left, right) => right.date.localeCompare(left.date) || right.createdAtMillis - left.createdAtMillis),
+    [expenses],
+  );
   const payments = useMemo(() => valuesToShares(paymentValues), [paymentValues]);
   const allocations = useMemo(() => valuesToShares(allocationValues), [allocationValues]);
   const validation = useMemo(
@@ -232,7 +326,19 @@ export function HouseholdApp() {
 
   function openExpense() {
     setNotice("");
+    setSelectedExpense(null);
     setView("expense");
+  }
+
+  function openHome() {
+    setSelectedExpense(null);
+    setView("home");
+  }
+
+  function openMovements() {
+    setNotice("");
+    setSelectedExpense(null);
+    setView("movements");
   }
 
   function updateTotal(nextValue: string) {
@@ -356,20 +462,43 @@ export function HouseholdApp() {
                 </div>
 
                 <section className="movements-section" aria-labelledby="recent-title">
-                  <div className="section-heading"><h2 id="recent-title">Movimientos recientes</h2><button type="button" className="text-action" disabled>Ver todos</button></div>
+                  <div className="section-heading"><h2 id="recent-title">Movimientos recientes</h2><button type="button" className="text-action" onClick={openMovements}>Ver todos</button></div>
                   <div className="movement-list">
-                    {expenses.length ? expenses.map((expense) => {
-                      const Icon = iconForCategory(expense.category);
-                      return (
-                        <button className="movement-row" type="button" key={expense.id}>
-                          <span className="movement-main">
-                            <span className="category-mark" aria-hidden="true"><Icon /></span>
-                            <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · pagado por {paidBy(expense)}</small></span>
-                          </span>
-                          <span className="movement-amount">−{formatEuros(expense.amountCents)}</span>
-                        </button>
-                      );
-                    }) : <p className="empty-state">Todavía no hay gastos. Añade el primero cuando quieras.</p>}
+                    {sortedExpenses.length
+                      ? sortedExpenses.slice(0, 3).map((expense) => <MovementRow expense={expense} onOpen={setSelectedExpense} key={expense.id} />)
+                      : <p className="empty-state">Todavía no hay gastos. Añade el primero cuando quieras.</p>}
+                  </div>
+                </section>
+              </div>
+            </>
+          ) : view === "movements" ? (
+            <>
+              <header className="topbar movements-header">
+                <div><p className="eyebrow">Historial del hogar</p><h1>Movimientos</h1></div>
+                <div className="profile-tools">
+                  <span className={`sync-badge is-${mode}`}>{modeLabel(mode)}</span>
+                  <button
+                    className="avatar-button"
+                    type="button"
+                    onClick={isFirebaseConfigured ? () => void signOut() : undefined}
+                    aria-label={isFirebaseConfigured ? "Cerrar sesión familiar" : "Perfil de Dani"}
+                    title={isFirebaseConfigured ? "Cerrar sesión" : "Perfil de Dani"}
+                  >D</button>
+                </div>
+              </header>
+
+              <div className="page-content movements-page">
+                {storeError ? <div className="error-notice" role="alert">No podemos sincronizar ahora. Comprueba el acceso de Firebase.</div> : null}
+                <section className="movements-summary" aria-label="Resumen de movimientos">
+                  <div><p className="card-label">Total registrado</p><strong>{formatEuros(sortedExpenses.reduce((sum, expense) => sum + expense.amountCents, 0))}</strong></div>
+                  <span>{sortedExpenses.length} {sortedExpenses.length === 1 ? "movimiento" : "movimientos"}</span>
+                </section>
+                <section className="movements-section movements-all" aria-labelledby="all-movements-title">
+                  <div className="section-heading"><h2 id="all-movements-title">Todos los movimientos</h2></div>
+                  <div className="movement-list">
+                    {sortedExpenses.length
+                      ? sortedExpenses.map((expense) => <MovementRow expense={expense} onOpen={setSelectedExpense} key={expense.id} />)
+                      : <p className="empty-state">Todavía no hay movimientos registrados.</p>}
                   </div>
                 </section>
               </div>
@@ -377,7 +506,7 @@ export function HouseholdApp() {
           ) : (
             <>
               <header className="editor-header">
-                <button type="button" className="icon-button" onClick={() => setView("home")} aria-label="Volver a inicio"><ArrowLeft aria-hidden="true" /></button>
+                <button type="button" className="icon-button" onClick={openHome} aria-label="Volver a inicio"><ArrowLeft aria-hidden="true" /></button>
                 <div><p className="eyebrow">Nuevo movimiento</p><h1>Registrar gasto</h1></div>
               </header>
 
@@ -450,13 +579,14 @@ export function HouseholdApp() {
 
         <nav className="bottom-navigation" aria-label="Navegación principal">
           <div className="nav-brand" aria-hidden="true"><span><House /></span><strong>Mi casa</strong><small>Gastos del hogar</small></div>
-          <button type="button" aria-current={view === "home" ? "page" : undefined} onClick={() => setView("home")}><House aria-hidden="true" />Inicio</button>
-          <button type="button" disabled><List aria-hidden="true" />Movimientos</button>
+          <button type="button" aria-current={view === "home" ? "page" : undefined} onClick={openHome}><House aria-hidden="true" />Inicio</button>
+          <button type="button" aria-current={view === "movements" ? "page" : undefined} onClick={openMovements}><List aria-hidden="true" />Movimientos</button>
           <button type="button" className="nav-add" onClick={openExpense} aria-label="Añadir gasto"><Plus aria-hidden="true" /></button>
           <button type="button" disabled><Scale aria-hidden="true" />Cuentas</button>
           <button type="button" disabled><Menu aria-hidden="true" />Más</button>
         </nav>
       </section>
+      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} onClose={() => setSelectedExpense(null)} /> : null}
     </main>
   );
 }
