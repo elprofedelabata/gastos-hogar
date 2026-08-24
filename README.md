@@ -1,13 +1,13 @@
 # Mi casa
 
-PWA móvil-first para registrar gastos compartidos del hogar, repartir cada
-movimiento entre varias personas y mantener actualizado el balance de quién
-debe a quién.
+PWA móvil-first para registrar gastos compartidos del hogar y mantener
+actualizado el balance de quién debe a quién. Todos los gastos corresponden a
+Dani y Tati a partes iguales.
 
 ## Qué incluye
 
 - Diseño responsive con prioridad móvil.
-- Gastos con uno o varios pagadores y reparto independiente.
+- Gastos con uno o varios pagadores y reparto automático a partes iguales.
 - Validación exacta y redondeo en céntimos.
 - Instalación como PWA y funcionamiento básico sin conexión.
 - Persistencia automática en el navegador cuando Firebase no está configurado.

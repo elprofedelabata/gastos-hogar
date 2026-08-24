@@ -3,13 +3,11 @@ export type MoneyShares = Record<string, number>;
 export type ExpenseDraft = {
   totalCents: number;
   payments: MoneyShares;
-  allocations: MoneyShares;
 };
 
 export type ExpenseValidation = {
   valid: boolean;
   paymentDifference: number;
-  allocationDifference: number;
 };
 
 export function eurosToCents(value: string): number {
@@ -51,15 +49,10 @@ export function sumShares(shares: MoneyShares): number {
 
 export function validateExpense(draft: ExpenseDraft): ExpenseValidation {
   const paymentDifference = draft.totalCents - sumShares(draft.payments);
-  const allocationDifference = draft.totalCents - sumShares(draft.allocations);
 
   return {
-    valid:
-      draft.totalCents > 0 &&
-      paymentDifference === 0 &&
-      allocationDifference === 0,
+    valid: draft.totalCents > 0 && paymentDifference === 0,
     paymentDifference,
-    allocationDifference,
   };
 }
 

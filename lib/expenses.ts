@@ -15,7 +15,7 @@ import {
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { useCallback, useEffect, useState } from "react";
-import type { MoneyShares } from "@/lib/domain";
+import { splitEvenly, type MoneyShares } from "@/lib/domain";
 import {
   getFirebaseClient,
   householdId,
@@ -36,7 +36,7 @@ export type Expense = {
   createdAtMillis: number;
 };
 
-export type ExpenseDraftRecord = Omit<Expense, "id" | "kind" | "createdAtMillis" | "settlementFromProfileId" | "settlementToProfileId">;
+export type ExpenseDraftRecord = Omit<Expense, "id" | "kind" | "allocations" | "createdAtMillis" | "settlementFromProfileId" | "settlementToProfileId">;
 
 export type SettlementDraftRecord = {
   date: string;
@@ -53,6 +53,11 @@ export type ExpenseStoreMode =
   | "error";
 
 const LOCAL_STORAGE_KEY = "mi-casa-expenses-v1";
+const householdProfileIds = ["dani", "ana"];
+
+function equalAllocations(amountCents: number): MoneyShares {
+  return splitEvenly(amountCents, householdProfileIds);
+}
 
 const demoExpenses: Expense[] = [
   {
@@ -96,7 +101,14 @@ function loadLocalExpenses(): Expense[] {
     if (!serialized) return demoExpenses;
     const parsed = JSON.parse(serialized) as Expense[];
     return Array.isArray(parsed)
-      ? parsed.map((expense) => ({ ...expense, kind: expense.kind === "settlement" ? "settlement" : "expense" }))
+      ? parsed.map((expense) => {
+          const kind = expense.kind === "settlement" ? "settlement" : "expense";
+          return {
+            ...expense,
+            kind,
+            allocations: kind === "settlement" ? {} : equalAllocations(expense.amountCents),
+          };
+        })
       : demoExpenses;
   } catch {
     return demoExpenses;
@@ -113,15 +125,17 @@ function saveLocalExpenses(expenses: Expense[]) {
 
 function expenseFromDocument(snapshot: QueryDocumentSnapshot<DocumentData>): Expense {
   const data = snapshot.data();
+  const kind = data.kind === "settlement" ? "settlement" : "expense";
+  const amountCents = Number(data.amountCents ?? 0);
   return {
     id: snapshot.id,
-    kind: data.kind === "settlement" ? "settlement" : "expense",
+    kind,
     name: String(data.name ?? data.category ?? "Gasto"),
     category: String(data.category ?? "Otros"),
     date: String(data.date ?? ""),
-    amountCents: Number(data.amountCents ?? 0),
+    amountCents,
     payments: (data.payments ?? {}) as MoneyShares,
-    allocations: (data.allocations ?? {}) as MoneyShares,
+    allocations: kind === "settlement" ? {} : equalAllocations(amountCents),
     settlementFromProfileId: data.settlementFromProfileId ? String(data.settlementFromProfileId) : undefined,
     settlementToProfileId: data.settlementToProfileId ? String(data.settlementToProfileId) : undefined,
     createdAtMillis:
@@ -186,9 +200,14 @@ export function useExpenses() {
 
   const addExpense = useCallback(
     async (draft: ExpenseDraftRecord) => {
+      const record = {
+        ...draft,
+        allocations: equalAllocations(draft.amountCents),
+      };
+
       if (!configured) {
         const expense: Expense = {
-          ...draft,
+          ...record,
           kind: "expense",
           id: `expense-${crypto.randomUUID()}`,
           createdAtMillis: Date.now(),
@@ -207,7 +226,7 @@ export function useExpenses() {
       await addDoc(
         collection(client.database, "households", householdId, "expenses"),
         {
-          ...draft,
+          ...record,
           kind: "expense",
           createdAt: serverTimestamp(),
           createdBy: client.auth.currentUser.uid,

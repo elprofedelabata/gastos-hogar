@@ -164,7 +164,6 @@ function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const isSettlement = expense.kind === "settlement";
   const paymentEntries = Object.entries(expense.payments).filter(([, cents]) => cents > 0);
-  const allocationEntries = Object.entries(expense.allocations).filter(([, cents]) => cents > 0);
   const currentBalanceImpact = movementBalanceDeltaFor(currentProfileId, expense);
   const settlementFrom = profileFor(expense.settlementFromProfileId ?? "");
   const settlementTo = profileFor(expense.settlementToProfileId ?? "");
@@ -206,17 +205,7 @@ function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
               <h3 id="detail-payments-title">Pagado por</h3>
               {paymentEntries.map(([profileId, cents]) => {
                 const profile = profileFor(profileId);
-                const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
-                return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span><strong>{formatEuros(cents)}</strong></div>;
-              })}
-            </section>
-
-            <section className="expense-detail-section" aria-labelledby="detail-allocations-title">
-              <h3 id="detail-allocations-title">Repartido entre</h3>
-              {allocationEntries.map(([profileId, cents]) => {
-                const profile = profileFor(profileId);
-                const percentage = expense.amountCents ? Math.round((cents / expense.amountCents) * 100) : 0;
-                return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span><strong>{formatEuros(cents)}</strong></div>;
+                return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong><strong>{formatEuros(cents)}</strong></div>;
               })}
             </section>
           </div>
@@ -433,11 +422,7 @@ export function HouseholdApp() {
   const [note, setNote] = useState("");
   const [payerIds, setPayerIds] = useState<string[]>([currentProfileId]);
   const [paymentValues, setPaymentValues] = useState<Record<string, string>>({ [currentProfileId]: "48.60" });
-  const [allocationValues, setAllocationValues] = useState<Record<string, string>>(
-    () => inputsFromSplit(4_860, profiles.map((profile) => profile.id)),
-  );
   const [paymentsAutomatic, setPaymentsAutomatic] = useState(true);
-  const [allocationsAutomatic, setAllocationsAutomatic] = useState(true);
   const expenseDialogRef = useRef<HTMLDialogElement>(null);
   const expenseCloseTimerRef = useRef<number | null>(null);
   const expenseAfterCloseRef = useRef<(() => void) | null>(null);
@@ -449,10 +434,9 @@ export function HouseholdApp() {
   );
   const expenseMovements = sortedExpenses.filter((expense) => expense.kind === "expense");
   const payments = useMemo(() => valuesToShares(paymentValues), [paymentValues]);
-  const allocations = useMemo(() => valuesToShares(allocationValues), [allocationValues]);
   const validation = useMemo(
-    () => validateExpense({ totalCents, payments, allocations }),
-    [totalCents, payments, allocations],
+    () => validateExpense({ totalCents, payments }),
+    [totalCents, payments],
   );
   const currentMonth = localDateValue().slice(0, 7);
   const monthlyExpenses = expenseMovements.filter((expense) => expense.date.startsWith(currentMonth));
@@ -578,9 +562,6 @@ export function HouseholdApp() {
     setTotal(nextValue);
     const nextCents = eurosToCents(nextValue);
     if (paymentsAutomatic) setPaymentValues(inputsFromSplit(nextCents, payerIds));
-    if (allocationsAutomatic) {
-      setAllocationValues(inputsFromSplit(nextCents, profiles.map((profile) => profile.id)));
-    }
   }
 
   function addNextPayer() {
@@ -605,11 +586,6 @@ export function HouseholdApp() {
     setPaymentsAutomatic(true);
   }
 
-  function equalizeAllocations() {
-    setAllocationValues(inputsFromSplit(totalCents, profiles.map((profile) => profile.id)));
-    setAllocationsAutomatic(true);
-  }
-
   function resetDraft() {
     const defaultCents = 4_860;
     setTotal(centsToInput(defaultCents));
@@ -618,9 +594,7 @@ export function HouseholdApp() {
     setNote("");
     setPayerIds([currentProfileId]);
     setPaymentValues({ [currentProfileId]: centsToInput(defaultCents) });
-    setAllocationValues(inputsFromSplit(defaultCents, profiles.map((profile) => profile.id)));
     setPaymentsAutomatic(true);
-    setAllocationsAutomatic(true);
   }
 
   async function saveExpense(event: FormEvent<HTMLFormElement>) {
@@ -628,7 +602,7 @@ export function HouseholdApp() {
     if (!validation.valid || saving) return;
     setSaving(true);
     try {
-      await addExpense({ name: note.trim() || category, category, date, amountCents: totalCents, payments, allocations });
+      await addExpense({ name: note.trim() || category, category, date, amountCents: totalCents, payments });
       setNotice(mode === "synced" ? "Gasto guardado y sincronizado" : "Gasto guardado en este dispositivo");
       closeExpense(() => {
         setView("home");
@@ -663,7 +637,6 @@ export function HouseholdApp() {
 
   const validationMessages = [
     differenceMessage(validation.paymentDifference, "pagadores"),
-    differenceMessage(validation.allocationDifference, "el reparto"),
   ].filter(Boolean);
 
   return (
@@ -823,11 +796,9 @@ export function HouseholdApp() {
                 <div className="share-list">
                   {payerIds.map((profileId) => {
                     const profile = profiles.find((item) => item.id === profileId)!;
-                    const shareCents = eurosToCents(paymentValues[profileId] ?? "0");
-                    const percentage = totalCents ? Math.round((shareCents / totalCents) * 100) : 0;
                     return (
                       <div className="share-row" key={profileId}>
-                        <span className="person-identity"><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span></span>
+                        <span className="person-identity"><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong></span>
                         <span className="money-control">
                           <input type="number" inputMode="decimal" min="0" step="0.01" value={paymentValues[profileId] ?? ""} onChange={(event) => { setPaymentValues((current) => ({ ...current, [profileId]: event.target.value })); setPaymentsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Cantidad pagada por ${profile.name}`} />
                           <span>€</span>
@@ -837,23 +808,7 @@ export function HouseholdApp() {
                     );
                   })}
                 </div>
-                {payerIds.length > 1 ? <button type="button" className="section-action" onClick={equalizePayments}>Repartir el pago por igual</button> : null}
-              </section>
-
-              <section className="form-section" aria-labelledby="allocations-title">
-                <div className="form-section-heading"><div><h2 id="allocations-title">Repartido entre</h2><p>A quién corresponde el gasto</p></div><button type="button" className="inline-action" onClick={equalizeAllocations}>Repartir igual</button></div>
-                <div className="share-list">
-                  {profiles.map((profile) => {
-                    const shareCents = eurosToCents(allocationValues[profile.id] ?? "0");
-                    const percentage = totalCents ? Math.round((shareCents / totalCents) * 100) : 0;
-                    return (
-                      <div className="share-row" key={profile.id}>
-                        <span className="person-identity"><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span></span>
-                        <span className="money-control"><input type="number" inputMode="decimal" min="0" step="0.01" value={allocationValues[profile.id] ?? ""} onChange={(event) => { setAllocationValues((current) => ({ ...current, [profile.id]: event.target.value })); setAllocationsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Parte del gasto correspondiente a ${profile.name}`} /><span>€</span></span>
-                      </div>
-                    );
-                  })}
-                </div>
+                {payerIds.length > 1 ? <button type="button" className="section-action" onClick={equalizePayments}>Igualar importes</button> : null}
               </section>
 
               <label className="note-field"><span>Nota <small>· opcional</small></span><input type="text" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Por ejemplo, compra semanal" /></label>
