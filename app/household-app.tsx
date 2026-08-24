@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  Eraser,
   House,
   List,
   LockKeyhole,
@@ -14,6 +15,7 @@ import {
   Scale,
   ShoppingBasket,
   Tag,
+  WandSparkles,
   X,
   Zap,
 } from "lucide-react";
@@ -572,6 +574,18 @@ export function HouseholdApp() {
     });
   }
 
+  function clearPayment(profileId: string) {
+    if (totalCents <= 0) return;
+    const otherProfile = profiles.find((profile) => profile.id !== profileId);
+    if (!otherProfile) return;
+
+    setPaymentValues((current) => ({
+      ...current,
+      [profileId]: centsToInput(0),
+      [otherProfile.id]: centsToInput(totalCents),
+    }));
+  }
+
   function resetDraft() {
     const defaultCents = 4_860;
     setTotal(centsToInput(defaultCents));
@@ -782,7 +796,8 @@ export function HouseholdApp() {
                       <div className="share-row" key={profile.id}>
                         <span className="person-identity"><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong></span>
                         <span className="money-control">
-                          <button type="button" className="payment-assign" onClick={() => assignPayment(profile.id)} disabled={totalCents <= 0} aria-label={`Asignar importe a ${profile.name}`}>Asignar</button>
+                          <button type="button" className="payment-action payment-assign" onClick={() => assignPayment(profile.id)} disabled={totalCents <= 0} aria-label={`Asignar importe a ${profile.name}`} title="Asignar automáticamente"><WandSparkles aria-hidden="true" /></button>
+                          <button type="button" className="payment-action payment-clear" onClick={() => clearPayment(profile.id)} disabled={totalCents <= 0} aria-label={`Vaciar importe de ${profile.name}`} title="Vaciar importe"><Eraser aria-hidden="true" /></button>
                           <input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0,00" value={paymentValues[profile.id] ?? ""} onChange={(event) => setPaymentValues((current) => ({ ...current, [profile.id]: event.target.value }))} onFocus={(event) => event.currentTarget.select()} aria-label={`Cantidad pagada por ${profile.name}`} />
                           <span>€</span>
                         </span>

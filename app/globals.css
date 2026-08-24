@@ -1265,23 +1265,41 @@ h2 {
   color: var(--muted);
 }
 
-.payment-assign {
-  min-height: 36px;
-  padding: 6px 9px;
+.payment-action {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
   border-radius: 10px;
   color: var(--accent);
   background: var(--surface-soft);
-  font-size: 0.72rem;
-  font-weight: 650;
   cursor: pointer;
+}
+
+.payment-action svg {
+  width: 1rem;
+  height: 1rem;
 }
 
 .payment-assign:hover {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-soft));
 }
 
-.payment-assign:disabled {
+.payment-clear {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--screen);
+}
+
+.payment-clear:hover {
+  color: var(--negative);
+  background: rgba(180, 69, 59, 0.08);
+}
+
+.payment-action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
