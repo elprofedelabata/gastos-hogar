@@ -394,12 +394,16 @@ export function HouseholdApp() {
     (sum, expense) => sum + movementBalanceDeltaFor(currentProfileId, expense),
     0,
   );
-  const accountSummaries = profiles.map((profile) => ({
-    profile,
-    paidCents: expenseMovements.reduce((sum, expense) => sum + (expense.payments[profile.id] ?? 0), 0),
-    allocatedCents: expenseMovements.reduce((sum, expense) => sum + (expense.allocations[profile.id] ?? 0), 0),
-    balanceCents: sortedExpenses.reduce((sum, expense) => sum + movementBalanceDeltaFor(profile.id, expense), 0),
-  }));
+  const accountSummaries = profiles.map((profile) => {
+    const paidCents = expenseMovements.reduce((sum, expense) => sum + (expense.payments[profile.id] ?? 0), 0);
+    const allocatedCents = expenseMovements.reduce((sum, expense) => sum + (expense.allocations[profile.id] ?? 0), 0);
+    const settlementCents = sortedExpenses
+      .filter((movement) => movement.kind === "settlement")
+      .reduce((sum, movement) => sum + movementBalanceDeltaFor(profile.id, movement), 0);
+    const contributedCents = paidCents + settlementCents;
+    return { profile, contributedCents, allocatedCents, balanceCents: contributedCents - allocatedCents };
+  });
+  const contributionScaleCents = Math.max(1, ...accountSummaries.flatMap((account) => [account.contributedCents, account.allocatedCents]));
   const debtor = accountSummaries.find((account) => account.balanceCents < 0);
   const creditor = accountSummaries.find((account) => account.balanceCents > 0);
   const settlementProposal: SettlementProposal | null = debtor && creditor
@@ -643,14 +647,16 @@ export function HouseholdApp() {
                 {notice ? <div className="success-notice" role="status"><Check aria-hidden="true" />{notice}</div> : null}
                 {storeError ? <div className="error-notice" role="alert">No podemos sincronizar ahora. Comprueba el acceso de Firebase.</div> : null}
 
+                <div className="accounts-legend" aria-hidden="true"><span><i className="legend-fill" />Aportación efectiva</span><span><i className="legend-target" />Objetivo de equilibrio</span></div>
                 <div className="accounts-grid">
-                  {accountSummaries.map(({ profile, paidCents, allocatedCents, balanceCents }) => (
+                  {accountSummaries.map(({ profile, contributedCents, allocatedCents, balanceCents }) => (
                     <section className="account-card" aria-label={`Cuenta de ${profile.name}`} key={profile.id}>
                       <header><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong></header>
-                      <dl>
-                        <div><dt>Ha pagado</dt><dd>{formatEuros(paidCents)}</dd></div>
-                        <div><dt>Le correspondía</dt><dd>{formatEuros(allocatedCents)}</dd></div>
-                      </dl>
+                      <div className="contribution-values"><div><span>Aportado</span><strong>{formatEuros(contributedCents)}</strong></div><div><span>Equilibrio</span><strong>{formatEuros(allocatedCents)}</strong></div></div>
+                      <div className="contribution-track" role="img" aria-label={`${profile.name} ha aportado ${formatEuros(contributedCents)}; el equilibrio está en ${formatEuros(allocatedCents)}`}>
+                        <span className="contribution-fill" style={{ width: `${Math.max(0, (contributedCents / contributionScaleCents) * 100)}%` }} />
+                        <span className="contribution-target" style={{ left: `${Math.max(0, (allocatedCents / contributionScaleCents) * 100)}%` }} />
+                      </div>
                       <div className="account-balance"><span>Balance</span><strong className={balanceCents >= 0 ? "is-positive" : "is-negative"}>{signedEuros(balanceCents)}</strong></div>
                     </section>
                   ))}
