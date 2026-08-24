@@ -1404,6 +1404,94 @@ h2 {
   box-shadow: 0 8px 20px rgba(23, 107, 85, 0.2);
 }
 
+@media (max-width: 899px) {
+  .expense-sheet {
+    height: auto;
+    max-height: calc(100svh - 8px);
+  }
+
+  .expense-sheet-heading {
+    padding-top: 6px;
+  }
+
+  .expense-sheet .editor-header {
+    padding: 5px 16px 9px;
+  }
+
+  .expense-sheet .expense-form {
+    padding: 0 16px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .expense-sheet .amount-field {
+    padding: 8px 0 10px;
+  }
+
+  .expense-sheet .amount-field > label {
+    margin-bottom: 0;
+  }
+
+  .expense-sheet .amount-field input {
+    font-size: 2rem;
+  }
+
+  .expense-sheet .basic-fields {
+    gap: 8px;
+  }
+
+  .expense-sheet .select-field,
+  .expense-sheet .date-field {
+    min-height: 52px;
+    padding: 8px 10px;
+  }
+
+  .expense-sheet .form-section {
+    margin-top: 8px;
+    padding: 11px 14px;
+  }
+
+  .expense-sheet .form-section-heading p {
+    margin-top: 1px;
+  }
+
+  .expense-sheet .inline-action {
+    min-height: 32px;
+  }
+
+  .expense-sheet .share-list {
+    margin-top: 5px;
+  }
+
+  .expense-sheet .share-row {
+    min-height: 48px;
+  }
+
+  .expense-sheet .money-control input {
+    min-height: 36px;
+    padding-block: 6px;
+  }
+
+  .expense-sheet .note-field {
+    margin-top: 8px;
+    padding: 10px 14px;
+    border-radius: 16px;
+  }
+
+  .expense-sheet .note-field input {
+    min-height: 38px;
+    margin-top: 5px;
+    padding: 7px 10px;
+  }
+
+  .expense-sheet .validation-summary {
+    min-height: 32px;
+    margin: 6px 2px;
+  }
+
+  .expense-sheet .save-action {
+    min-height: 48px;
+  }
+}
+
 @media (max-width: 480px) {
   .site-shell {
     display: block;
