@@ -1020,6 +1020,85 @@ h2 {
   padding: 4px 18px 24px;
 }
 
+.expense-entry-dialog {
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+}
+
+.expense-entry-dialog[open] {
+  display: grid;
+  align-items: end;
+}
+
+.expense-entry-dialog::backdrop {
+  background: rgba(10, 24, 20, 0.34);
+  backdrop-filter: blur(8px);
+}
+
+.expense-entry-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.expense-sheet {
+  position: relative;
+  width: 100%;
+  height: 80dvh;
+  max-height: 80dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 28px 28px 0 0;
+  background: var(--screen);
+  box-shadow: 0 -24px 70px rgba(12, 31, 25, 0.28);
+}
+
+.expense-sheet-heading {
+  position: sticky;
+  z-index: 4;
+  top: 0;
+  padding-top: 8px;
+  border-radius: 28px 28px 0 0;
+  background: color-mix(in srgb, var(--screen) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.expense-sheet-handle {
+  display: block;
+  width: 42px;
+  height: 4px;
+  margin: 0 auto 2px;
+  border-radius: 99px;
+  background: var(--line);
+}
+
+.expense-sheet .editor-header {
+  justify-content: space-between;
+  padding: 8px 18px 14px;
+}
+
+.sheet-close {
+  background: var(--surface);
+}
+
+.expense-sheet .expense-form {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
 .amount-field {
   padding: 18px 0 22px;
   text-align: center;
@@ -1315,10 +1394,6 @@ h2 {
   box-shadow: 0 8px 20px rgba(23, 107, 85, 0.2);
 }
 
-.view-expense .bottom-navigation {
-  display: none;
-}
-
 @media (max-width: 480px) {
   .site-shell {
     display: block;
@@ -1429,8 +1504,39 @@ h2 {
     padding: 10px 28px 36px;
   }
 
-  .bottom-navigation,
-  .view-expense .bottom-navigation {
+  .expense-entry-dialog {
+    padding: 32px;
+  }
+
+  .expense-entry-dialog[open] {
+    place-items: center;
+  }
+
+  .expense-sheet {
+    width: min(100%, 850px);
+    height: auto;
+    max-height: calc(100dvh - 64px);
+    border-radius: 26px;
+  }
+
+  .expense-sheet-heading {
+    padding-top: 0;
+    border-radius: 26px 26px 0 0;
+  }
+
+  .expense-sheet-handle {
+    display: none;
+  }
+
+  .expense-sheet .editor-header {
+    padding: 24px 28px 16px;
+  }
+
+  .expense-sheet .expense-form {
+    padding: 10px 28px 36px;
+  }
+
+  .bottom-navigation {
     position: static;
     width: auto;
     transform: none;
@@ -1516,9 +1622,25 @@ h2 {
     transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
   }
 
+  .expense-entry-dialog[open] .expense-sheet {
+    animation: expense-sheet-rise 240ms ease-out;
+  }
+
   .save-action:active,
   .nav-add:active {
     transform: scale(0.98);
+  }
+}
+
+@keyframes expense-sheet-rise {
+  from {
+    transform: translateY(100%);
+    opacity: 0.7;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
 }
 

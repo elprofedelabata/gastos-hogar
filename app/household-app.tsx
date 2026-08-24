@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
   CalendarDays,
@@ -419,7 +418,8 @@ function AccessScreen({ mode, onSignIn }: AccessScreenProps) {
 
 export function HouseholdApp() {
   const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, signIn, signOut } = useExpenses();
-  const [view, setView] = useState<"home" | "movements" | "accounts" | "expense">("home");
+  const [view, setView] = useState<"home" | "movements" | "accounts">("home");
+  const [expenseOpen, setExpenseOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [savingSettlement, setSavingSettlement] = useState(false);
@@ -436,6 +436,8 @@ export function HouseholdApp() {
   );
   const [paymentsAutomatic, setPaymentsAutomatic] = useState(true);
   const [allocationsAutomatic, setAllocationsAutomatic] = useState(true);
+  const expenseDialogRef = useRef<HTMLDialogElement>(null);
+  const expenseCloseButtonRef = useRef<HTMLButtonElement>(null);
 
   const totalCents = eurosToCents(total);
   const sortedExpenses = useMemo(
@@ -480,6 +482,15 @@ export function HouseholdApp() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    if (!expenseOpen) return;
+    const dialog = expenseDialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      expenseCloseButtonRef.current?.focus();
+    }
+  }, [expenseOpen]);
+
   if (isFirebaseConfigured && (mode === "auth-required" || (mode === "connecting" && expenses.length === 0))) {
     return <AccessScreen mode={mode} onSignIn={signIn} />;
   }
@@ -487,7 +498,11 @@ export function HouseholdApp() {
   function openExpense() {
     setNotice("");
     setSelectedExpense(null);
-    setView("expense");
+    setExpenseOpen(true);
+  }
+
+  function closeExpense() {
+    expenseDialogRef.current?.close();
   }
 
   function openHome() {
@@ -565,6 +580,7 @@ export function HouseholdApp() {
       await addExpense({ name: note.trim() || category, category, date, amountCents: totalCents, payments, allocations });
       setNotice(mode === "synced" ? "Gasto guardado y sincronizado" : "Gasto guardado en este dispositivo");
       setView("home");
+      setExpenseOpen(false);
       resetDraft();
     } catch {
       setNotice("No se ha podido guardar el gasto");
@@ -672,7 +688,7 @@ export function HouseholdApp() {
                 </section>
               </div>
             </>
-          ) : view === "accounts" ? (
+          ) : (
             <>
               <header className="topbar accounts-header">
                 <div><p className="eyebrow">Balance compartido</p><h1>Cuentas</h1></div>
@@ -709,77 +725,6 @@ export function HouseholdApp() {
                 </section>
               </div>
             </>
-          ) : (
-            <>
-              <header className="editor-header">
-                <button type="button" className="icon-button" onClick={openHome} aria-label="Volver a inicio"><ArrowLeft aria-hidden="true" /></button>
-                <div><p className="eyebrow">Nuevo movimiento</p><h1>Registrar gasto</h1></div>
-              </header>
-
-              <form className="expense-form" onSubmit={saveExpense}>
-                <div className="amount-field">
-                  <label htmlFor="expense-total">Importe</label>
-                  <div>
-                    <input id="expense-total" type="number" inputMode="decimal" min="0" step="0.01" value={total} onChange={(event) => updateTotal(event.target.value)} onFocus={(event) => event.currentTarget.select()} />
-                    <span>€</span>
-                  </div>
-                </div>
-
-                <div className="basic-fields">
-                  <label className="select-field"><Tag aria-hidden="true" /><span><small>Categoría</small><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((option) => <option key={option}>{option}</option>)}</select></span></label>
-                  <label className="date-field"><CalendarDays aria-hidden="true" /><span><small>Fecha</small><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></span></label>
-                </div>
-
-                <section className="form-section" aria-labelledby="payers-title">
-                  <div className="form-section-heading">
-                    <div><h2 id="payers-title">Pagado por</h2><p>Quién adelantó el dinero</p></div>
-                    {remainingPayers.length ? <button type="button" className="inline-action" onClick={addNextPayer}><UserPlus aria-hidden="true" /> Añadir</button> : null}
-                  </div>
-                  <div className="share-list">
-                    {payerIds.map((profileId) => {
-                      const profile = profiles.find((item) => item.id === profileId)!;
-                      const shareCents = eurosToCents(paymentValues[profileId] ?? "0");
-                      const percentage = totalCents ? Math.round((shareCents / totalCents) * 100) : 0;
-                      return (
-                        <div className="share-row" key={profileId}>
-                          <span className="person-identity"><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span></span>
-                          <span className="money-control">
-                            <input type="number" inputMode="decimal" min="0" step="0.01" value={paymentValues[profileId] ?? ""} onChange={(event) => { setPaymentValues((current) => ({ ...current, [profileId]: event.target.value })); setPaymentsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Cantidad pagada por ${profile.name}`} />
-                            <span>€</span>
-                            {payerIds.length > 1 ? <button type="button" className="remove-person" onClick={() => removePayer(profileId)} aria-label={`Quitar a ${profile.name} como pagador`}><X aria-hidden="true" /></button> : null}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {payerIds.length > 1 ? <button type="button" className="section-action" onClick={equalizePayments}>Repartir el pago por igual</button> : null}
-                </section>
-
-                <section className="form-section" aria-labelledby="allocations-title">
-                  <div className="form-section-heading"><div><h2 id="allocations-title">Repartido entre</h2><p>A quién corresponde el gasto</p></div><button type="button" className="inline-action" onClick={equalizeAllocations}>Repartir igual</button></div>
-                  <div className="share-list">
-                    {profiles.map((profile) => {
-                      const shareCents = eurosToCents(allocationValues[profile.id] ?? "0");
-                      const percentage = totalCents ? Math.round((shareCents / totalCents) * 100) : 0;
-                      return (
-                        <div className="share-row" key={profile.id}>
-                          <span className="person-identity"><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span></span>
-                          <span className="money-control"><input type="number" inputMode="decimal" min="0" step="0.01" value={allocationValues[profile.id] ?? ""} onChange={(event) => { setAllocationValues((current) => ({ ...current, [profile.id]: event.target.value })); setAllocationsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Parte del gasto correspondiente a ${profile.name}`} /><span>€</span></span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-
-                <label className="note-field"><span>Nota <small>· opcional</small></span><input type="text" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Por ejemplo, compra semanal" /></label>
-
-                <div className={`validation-summary ${validation.valid ? "is-valid" : "is-error"}`} role="status">
-                  {validation.valid ? <><span><Check aria-hidden="true" /> Todo cuadra</span><strong>{formatEuros(totalCents)}</strong></> : <span>{validationMessages.join(" · ") || "Introduce un importe válido"}</span>}
-                </div>
-
-                <button type="submit" className="save-action" disabled={!validation.valid || saving}>{saving ? "Guardando…" : "Guardar gasto"}</button>
-              </form>
-            </>
           )}
         </div>
 
@@ -792,6 +737,84 @@ export function HouseholdApp() {
           <button type="button" disabled><Menu aria-hidden="true" />Más</button>
         </nav>
       </section>
+      {expenseOpen ? (
+        <dialog ref={expenseDialogRef} className="expense-entry-dialog" aria-labelledby="expense-entry-title" onClose={() => setExpenseOpen(false)}>
+          <button type="button" className="expense-entry-backdrop" onClick={closeExpense} tabIndex={-1} aria-label="Cerrar nuevo gasto" />
+          <section className="expense-sheet">
+            <div className="expense-sheet-heading">
+              <span className="expense-sheet-handle" aria-hidden="true" />
+              <header className="editor-header">
+                <div><p className="eyebrow">Nuevo movimiento</p><h1 id="expense-entry-title">Registrar gasto</h1></div>
+                <button ref={expenseCloseButtonRef} type="button" className="icon-button sheet-close" onClick={closeExpense} aria-label="Cerrar nuevo gasto"><X aria-hidden="true" /></button>
+              </header>
+            </div>
+
+            <form className="expense-form" onSubmit={saveExpense}>
+              <div className="amount-field">
+                <label htmlFor="expense-total">Importe</label>
+                <div>
+                  <input id="expense-total" type="number" inputMode="decimal" min="0" step="0.01" value={total} onChange={(event) => updateTotal(event.target.value)} onFocus={(event) => event.currentTarget.select()} />
+                  <span>€</span>
+                </div>
+              </div>
+
+              <div className="basic-fields">
+                <label className="select-field"><Tag aria-hidden="true" /><span><small>Categoría</small><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((option) => <option key={option}>{option}</option>)}</select></span></label>
+                <label className="date-field"><CalendarDays aria-hidden="true" /><span><small>Fecha</small><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></span></label>
+              </div>
+
+              <section className="form-section" aria-labelledby="payers-title">
+                <div className="form-section-heading">
+                  <div><h2 id="payers-title">Pagado por</h2><p>Quién adelantó el dinero</p></div>
+                  {remainingPayers.length ? <button type="button" className="inline-action" onClick={addNextPayer}><UserPlus aria-hidden="true" /> Añadir</button> : null}
+                </div>
+                <div className="share-list">
+                  {payerIds.map((profileId) => {
+                    const profile = profiles.find((item) => item.id === profileId)!;
+                    const shareCents = eurosToCents(paymentValues[profileId] ?? "0");
+                    const percentage = totalCents ? Math.round((shareCents / totalCents) * 100) : 0;
+                    return (
+                      <div className="share-row" key={profileId}>
+                        <span className="person-identity"><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del pago</small></span></span>
+                        <span className="money-control">
+                          <input type="number" inputMode="decimal" min="0" step="0.01" value={paymentValues[profileId] ?? ""} onChange={(event) => { setPaymentValues((current) => ({ ...current, [profileId]: event.target.value })); setPaymentsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Cantidad pagada por ${profile.name}`} />
+                          <span>€</span>
+                          {payerIds.length > 1 ? <button type="button" className="remove-person" onClick={() => removePayer(profileId)} aria-label={`Quitar a ${profile.name} como pagador`}><X aria-hidden="true" /></button> : null}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {payerIds.length > 1 ? <button type="button" className="section-action" onClick={equalizePayments}>Repartir el pago por igual</button> : null}
+              </section>
+
+              <section className="form-section" aria-labelledby="allocations-title">
+                <div className="form-section-heading"><div><h2 id="allocations-title">Repartido entre</h2><p>A quién corresponde el gasto</p></div><button type="button" className="inline-action" onClick={equalizeAllocations}>Repartir igual</button></div>
+                <div className="share-list">
+                  {profiles.map((profile) => {
+                    const shareCents = eurosToCents(allocationValues[profile.id] ?? "0");
+                    const percentage = totalCents ? Math.round((shareCents / totalCents) * 100) : 0;
+                    return (
+                      <div className="share-row" key={profile.id}>
+                        <span className="person-identity"><span className="person-avatar">{profile.initial}</span><span><strong>{profile.name}</strong><small>{percentage}% del gasto</small></span></span>
+                        <span className="money-control"><input type="number" inputMode="decimal" min="0" step="0.01" value={allocationValues[profile.id] ?? ""} onChange={(event) => { setAllocationValues((current) => ({ ...current, [profile.id]: event.target.value })); setAllocationsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Parte del gasto correspondiente a ${profile.name}`} /><span>€</span></span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <label className="note-field"><span>Nota <small>· opcional</small></span><input type="text" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Por ejemplo, compra semanal" /></label>
+
+              <div className={`validation-summary ${validation.valid ? "is-valid" : "is-error"}`} role="status">
+                {validation.valid ? <><span><Check aria-hidden="true" /> Todo cuadra</span><strong>{formatEuros(totalCents)}</strong></> : <span>{validationMessages.join(" · ") || "Introduce un importe válido"}</span>}
+              </div>
+
+              <button type="submit" className="save-action" disabled={!validation.valid || saving}>{saving ? "Guardando…" : "Guardar gasto"}</button>
+            </form>
+          </section>
+        </dialog>
+      ) : null}
       {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} onClose={() => setSelectedExpense(null)} /> : null}
       {settlementOpen && settlementProposal ? <SettlementConfirmModal proposal={settlementProposal} saving={savingSettlement} onConfirm={confirmSettlement} onClose={() => setSettlementOpen(false)} /> : null}
     </main>
