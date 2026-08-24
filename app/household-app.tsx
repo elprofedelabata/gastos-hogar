@@ -8,6 +8,7 @@ import {
   House,
   List,
   LockKeyhole,
+  LogOut,
   Menu,
   Plus,
   ReceiptText,
@@ -285,6 +286,68 @@ function modeLabel(mode: ExpenseStoreMode) {
   return "Modo local";
 }
 
+type ProfileToolsProps = {
+  mode: ExpenseStoreMode;
+  onSignOut?: () => Promise<void>;
+};
+
+function ProfileTools({ mode, onSignOut }: ProfileToolsProps) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const profile = profileFor(currentProfileId);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function closeFromOutside(event: PointerEvent) {
+      if (event.target instanceof Node && !menuRef.current?.contains(event.target)) setOpen(false);
+    }
+
+    function closeFromKeyboard(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+
+    document.addEventListener("pointerdown", closeFromOutside);
+    document.addEventListener("keydown", closeFromKeyboard);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside);
+      document.removeEventListener("keydown", closeFromKeyboard);
+    };
+  }, [open]);
+
+  async function selectSignOut() {
+    setOpen(false);
+    await onSignOut?.();
+  }
+
+  return (
+    <div className="profile-tools">
+      <span className={`sync-badge is-${mode}`}>{modeLabel(mode)}</span>
+      <div className="profile-menu" ref={menuRef}>
+        <button
+          ref={triggerRef}
+          className="avatar-button"
+          type="button"
+          aria-label={`Abrir menú de ${profile.name}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? "profile-dropdown" : undefined}
+          onClick={() => setOpen((current) => !current)}
+          title={`Menú de ${profile.name}`}
+        >{profile.initial}</button>
+        {open ? (
+          <div className="profile-dropdown" id="profile-dropdown" role="menu">
+            <button type="button" role="menuitem" onClick={() => void selectSignOut()} disabled={!onSignOut}><LogOut aria-hidden="true" />Cerrar sesión</button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function authErrorMessage(error: unknown) {
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
   if (code.includes("invalid-credential")) return "El correo o la contraseña no son correctos";
@@ -543,16 +606,7 @@ export function HouseholdApp() {
             <>
               <header className="topbar">
                 <div><p className="eyebrow">Buenos días, Dani</p><h1>Mi casa</h1></div>
-                <div className="profile-tools">
-                  <span className={`sync-badge is-${mode}`}>{modeLabel(mode)}</span>
-                  <button
-                    className="avatar-button"
-                    type="button"
-                    onClick={isFirebaseConfigured ? () => void signOut() : undefined}
-                    aria-label={isFirebaseConfigured ? "Cerrar sesión familiar" : "Perfil de Dani"}
-                    title={isFirebaseConfigured ? "Cerrar sesión" : "Perfil de Dani"}
-                  >D</button>
-                </div>
+                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content">
@@ -599,16 +653,7 @@ export function HouseholdApp() {
             <>
               <header className="topbar movements-header">
                 <div><p className="eyebrow">Historial del hogar</p><h1>Movimientos</h1></div>
-                <div className="profile-tools">
-                  <span className={`sync-badge is-${mode}`}>{modeLabel(mode)}</span>
-                  <button
-                    className="avatar-button"
-                    type="button"
-                    onClick={isFirebaseConfigured ? () => void signOut() : undefined}
-                    aria-label={isFirebaseConfigured ? "Cerrar sesión familiar" : "Perfil de Dani"}
-                    title={isFirebaseConfigured ? "Cerrar sesión" : "Perfil de Dani"}
-                  >D</button>
-                </div>
+                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content movements-page">
@@ -631,16 +676,7 @@ export function HouseholdApp() {
             <>
               <header className="topbar accounts-header">
                 <div><p className="eyebrow">Balance compartido</p><h1>Cuentas</h1></div>
-                <div className="profile-tools">
-                  <span className={`sync-badge is-${mode}`}>{modeLabel(mode)}</span>
-                  <button
-                    className="avatar-button"
-                    type="button"
-                    onClick={isFirebaseConfigured ? () => void signOut() : undefined}
-                    aria-label={isFirebaseConfigured ? "Cerrar sesión familiar" : "Perfil de Dani"}
-                    title={isFirebaseConfigured ? "Cerrar sesión" : "Perfil de Dani"}
-                  >D</button>
-                </div>
+                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content accounts-page">
