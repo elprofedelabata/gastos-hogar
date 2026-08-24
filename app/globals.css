@@ -1041,7 +1041,8 @@ h2 {
 
 .expense-entry-dialog::backdrop {
   background: rgba(10, 24, 20, 0.34);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 .expense-entry-backdrop {
@@ -1065,6 +1066,10 @@ h2 {
   border-radius: 28px 28px 0 0;
   background: var(--screen);
   box-shadow: 0 -24px 70px rgba(12, 31, 25, 0.28);
+  backface-visibility: hidden;
+  contain: paint;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .expense-sheet-heading {
@@ -1073,8 +1078,7 @@ h2 {
   top: 0;
   padding-top: 8px;
   border-radius: 28px 28px 0 0;
-  background: color-mix(in srgb, var(--screen) 94%, transparent);
-  backdrop-filter: blur(12px);
+  background: var(--screen);
 }
 
 .expense-sheet-handle {
@@ -1508,6 +1512,11 @@ h2 {
     padding: 32px;
   }
 
+  .expense-entry-dialog::backdrop {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
   .expense-entry-dialog[open] {
     place-items: center;
   }
@@ -1623,7 +1632,7 @@ h2 {
   }
 
   .expense-entry-dialog[open] .expense-sheet {
-    animation: expense-sheet-rise 240ms ease-out;
+    animation: expense-sheet-rise 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .save-action:active,
@@ -1634,13 +1643,11 @@ h2 {
 
 @keyframes expense-sheet-rise {
   from {
-    transform: translateY(100%);
-    opacity: 0.7;
+    transform: translate3d(0, 100%, 0);
   }
 
   to {
-    transform: translateY(0);
-    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
