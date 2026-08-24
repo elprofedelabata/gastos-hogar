@@ -267,8 +267,7 @@ h2 {
 .share-row,
 .person-identity,
 .money-control,
-.validation-summary,
-.inline-action {
+.validation-summary {
   display: flex;
   align-items: center;
 }
@@ -290,9 +289,7 @@ h2 {
 }
 
 .month-button,
-.text-action,
-.inline-action,
-.section-action {
+.text-action {
   border: 0;
   color: var(--accent);
   background: transparent;
@@ -305,8 +302,7 @@ h2 {
   padding: 4px 0;
 }
 
-.text-action,
-.inline-action {
+.text-action {
   gap: 5px;
   font-size: 0.82rem;
 }
@@ -1206,12 +1202,6 @@ h2 {
   font-size: 0.75rem;
 }
 
-.inline-action {
-  flex: 0 0 auto;
-  min-height: 34px;
-  padding: 5px 0;
-}
-
 .share-list {
   margin-top: 10px;
 }
@@ -1275,28 +1265,25 @@ h2 {
   color: var(--muted);
 }
 
-.remove-person {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  color: var(--muted);
-  background: transparent;
+.payment-assign {
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--surface-soft);
+  font-size: 0.72rem;
+  font-weight: 650;
   cursor: pointer;
 }
 
-.remove-person:hover {
-  color: var(--negative);
-  background: rgba(180, 69, 59, 0.09);
+.payment-assign:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-soft));
 }
 
-.section-action {
-  display: block;
-  margin: 6px 0 0 auto;
-  padding: 7px 0;
-  font-size: 0.78rem;
+.payment-assign:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .note-field {
@@ -1451,10 +1438,6 @@ h2 {
 
   .expense-sheet .form-section-heading p {
     margin-top: 1px;
-  }
-
-  .expense-sheet .inline-action {
-    min-height: 32px;
   }
 
   .expense-sheet .share-list {

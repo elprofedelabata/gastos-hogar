@@ -14,7 +14,6 @@ import {
   Scale,
   ShoppingBasket,
   Tag,
-  UserPlus,
   X,
   Zap,
 } from "lucide-react";
@@ -420,9 +419,7 @@ export function HouseholdApp() {
   const [category, setCategory] = useState("Supermercado");
   const [date, setDate] = useState(localDateValue);
   const [note, setNote] = useState("");
-  const [payerIds, setPayerIds] = useState<string[]>([currentProfileId]);
-  const [paymentValues, setPaymentValues] = useState<Record<string, string>>({ [currentProfileId]: "48.60" });
-  const [paymentsAutomatic, setPaymentsAutomatic] = useState(true);
+  const [paymentValues, setPaymentValues] = useState<Record<string, string>>({ dani: "", ana: "" });
   const expenseDialogRef = useRef<HTMLDialogElement>(null);
   const expenseCloseTimerRef = useRef<number | null>(null);
   const expenseAfterCloseRef = useRef<(() => void) | null>(null);
@@ -461,7 +458,6 @@ export function HouseholdApp() {
   const settlementProposal: SettlementProposal | null = debtor && creditor
     ? { from: debtor.profile, to: creditor.profile, amountCents: Math.min(Math.abs(debtor.balanceCents), creditor.balanceCents) }
     : null;
-  const remainingPayers = profiles.filter((profile) => !payerIds.includes(profile.id));
 
   useEffect(() => {
     if (!notice) return;
@@ -560,30 +556,20 @@ export function HouseholdApp() {
 
   function updateTotal(nextValue: string) {
     setTotal(nextValue);
-    const nextCents = eurosToCents(nextValue);
-    if (paymentsAutomatic) setPaymentValues(inputsFromSplit(nextCents, payerIds));
   }
 
-  function addNextPayer() {
-    const nextProfile = remainingPayers[0];
-    if (!nextProfile) return;
-    const nextPayerIds = [...payerIds, nextProfile.id];
-    setPayerIds(nextPayerIds);
-    setPaymentValues(inputsFromSplit(totalCents, nextPayerIds));
-    setPaymentsAutomatic(true);
-  }
+  function assignPayment(profileId: string) {
+    if (totalCents <= 0) return;
+    const otherProfile = profiles.find((profile) => profile.id !== profileId);
+    if (!otherProfile) return;
 
-  function removePayer(profileId: string) {
-    if (payerIds.length === 1) return;
-    const nextPayerIds = payerIds.filter((id) => id !== profileId);
-    setPayerIds(nextPayerIds);
-    setPaymentValues(inputsFromSplit(totalCents, nextPayerIds));
-    setPaymentsAutomatic(true);
-  }
-
-  function equalizePayments() {
-    setPaymentValues(inputsFromSplit(totalCents, payerIds));
-    setPaymentsAutomatic(true);
+    setPaymentValues((current) => {
+      const otherCents = eurosToCents(current[otherProfile.id] ?? "");
+      if (otherCents >= totalCents) {
+        return inputsFromSplit(totalCents, profiles.map((profile) => profile.id));
+      }
+      return { ...current, [profileId]: centsToInput(totalCents - otherCents) };
+    });
   }
 
   function resetDraft() {
@@ -592,9 +578,7 @@ export function HouseholdApp() {
     setCategory("Supermercado");
     setDate(localDateValue());
     setNote("");
-    setPayerIds([currentProfileId]);
-    setPaymentValues({ [currentProfileId]: centsToInput(defaultCents) });
-    setPaymentsAutomatic(true);
+    setPaymentValues({ dani: "", ana: "" });
   }
 
   async function saveExpense(event: FormEvent<HTMLFormElement>) {
@@ -791,24 +775,21 @@ export function HouseholdApp() {
               <section className="form-section" aria-labelledby="payers-title">
                 <div className="form-section-heading">
                   <div><h2 id="payers-title">Pagado por</h2><p>Quién adelantó el dinero</p></div>
-                  {remainingPayers.length ? <button type="button" className="inline-action" onClick={addNextPayer}><UserPlus aria-hidden="true" /> Añadir</button> : null}
                 </div>
                 <div className="share-list">
-                  {payerIds.map((profileId) => {
-                    const profile = profiles.find((item) => item.id === profileId)!;
+                  {profiles.map((profile) => {
                     return (
-                      <div className="share-row" key={profileId}>
+                      <div className="share-row" key={profile.id}>
                         <span className="person-identity"><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong></span>
                         <span className="money-control">
-                          <input type="number" inputMode="decimal" min="0" step="0.01" value={paymentValues[profileId] ?? ""} onChange={(event) => { setPaymentValues((current) => ({ ...current, [profileId]: event.target.value })); setPaymentsAutomatic(false); }} onFocus={(event) => event.currentTarget.select()} aria-label={`Cantidad pagada por ${profile.name}`} />
+                          <button type="button" className="payment-assign" onClick={() => assignPayment(profile.id)} disabled={totalCents <= 0} aria-label={`Asignar importe a ${profile.name}`}>Asignar</button>
+                          <input type="number" inputMode="decimal" min="0" step="0.01" placeholder="0,00" value={paymentValues[profile.id] ?? ""} onChange={(event) => setPaymentValues((current) => ({ ...current, [profile.id]: event.target.value }))} onFocus={(event) => event.currentTarget.select()} aria-label={`Cantidad pagada por ${profile.name}`} />
                           <span>€</span>
-                          {payerIds.length > 1 ? <button type="button" className="remove-person" onClick={() => removePayer(profileId)} aria-label={`Quitar a ${profile.name} como pagador`}><X aria-hidden="true" /></button> : null}
                         </span>
                       </div>
                     );
                   })}
                 </div>
-                {payerIds.length > 1 ? <button type="button" className="section-action" onClick={equalizePayments}>Igualar importes</button> : null}
               </section>
 
               <label className="note-field"><span>Nota <small>· opcional</small></span><input type="text" value={note} onChange={(event) => setNote(event.target.value)} placeholder="Por ejemplo, compra semanal" /></label>
