@@ -45,6 +45,7 @@ const profiles: Profile[] = [
 ];
 
 const currentProfileId = "dani";
+const expenseSheetTransitionMs = 360;
 const monthlyBudgetCents = 180_000;
 const categories = ["Supermercado", "Suministros", "Vivienda", "Transporte", "Ocio", "Salud", "Otros"];
 
@@ -438,6 +439,8 @@ export function HouseholdApp() {
   const [paymentsAutomatic, setPaymentsAutomatic] = useState(true);
   const [allocationsAutomatic, setAllocationsAutomatic] = useState(true);
   const expenseDialogRef = useRef<HTMLDialogElement>(null);
+  const expenseCloseTimerRef = useRef<number | null>(null);
+  const expenseAfterCloseRef = useRef<(() => void) | null>(null);
 
   const totalCents = eurosToCents(total);
   const sortedExpenses = useMemo(
@@ -499,19 +502,58 @@ export function HouseholdApp() {
     };
   }, [expenseOpen]);
 
+  useEffect(() => () => {
+    if (expenseCloseTimerRef.current !== null) window.clearTimeout(expenseCloseTimerRef.current);
+  }, []);
+
   if (isFirebaseConfigured && (mode === "auth-required" || (mode === "connecting" && expenses.length === 0))) {
     return <AccessScreen mode={mode} onSignIn={signIn} />;
   }
 
   function openExpense() {
+    if (expenseCloseTimerRef.current !== null) {
+      window.clearTimeout(expenseCloseTimerRef.current);
+      expenseCloseTimerRef.current = null;
+    }
+    expenseAfterCloseRef.current = null;
     setNotice("");
     setSelectedExpense(null);
     setExpenseVisible(false);
     setExpenseOpen(true);
   }
 
-  function closeExpense() {
-    expenseDialogRef.current?.close();
+  function finishExpenseClose() {
+    if (expenseCloseTimerRef.current !== null) {
+      window.clearTimeout(expenseCloseTimerRef.current);
+      expenseCloseTimerRef.current = null;
+    }
+    const dialog = expenseDialogRef.current;
+    if (dialog?.open) dialog.close();
+    else handleExpenseDialogClose();
+  }
+
+  function handleExpenseDialogClose() {
+    if (expenseCloseTimerRef.current !== null) {
+      window.clearTimeout(expenseCloseTimerRef.current);
+      expenseCloseTimerRef.current = null;
+    }
+    setExpenseVisible(false);
+    setExpenseOpen(false);
+    const afterClose = expenseAfterCloseRef.current;
+    expenseAfterCloseRef.current = null;
+    afterClose?.();
+  }
+
+  function closeExpense(afterClose?: () => void) {
+    if (afterClose) expenseAfterCloseRef.current = afterClose;
+    if (expenseCloseTimerRef.current !== null) return;
+
+    setExpenseVisible(false);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    expenseCloseTimerRef.current = window.setTimeout(
+      finishExpenseClose,
+      reducedMotion ? 0 : expenseSheetTransitionMs + 80,
+    );
   }
 
   function openHome() {
@@ -588,9 +630,10 @@ export function HouseholdApp() {
     try {
       await addExpense({ name: note.trim() || category, category, date, amountCents: totalCents, payments, allocations });
       setNotice(mode === "synced" ? "Gasto guardado y sincronizado" : "Gasto guardado en este dispositivo");
-      setView("home");
-      setExpenseOpen(false);
-      resetDraft();
+      closeExpense(() => {
+        setView("home");
+        resetDraft();
+      });
     } catch {
       setNotice("No se ha podido guardar el gasto");
     } finally {
@@ -747,14 +790,14 @@ export function HouseholdApp() {
         </nav>
       </section>
       {expenseOpen ? (
-        <dialog ref={expenseDialogRef} className={`expense-entry-dialog${expenseVisible ? " is-visible" : ""}`} aria-labelledby="expense-entry-title" onClose={() => { setExpenseVisible(false); setExpenseOpen(false); }}>
-          <button type="button" className="expense-entry-backdrop" onClick={closeExpense} tabIndex={-1} aria-label="Cerrar nuevo gasto" />
-          <section className="expense-sheet">
+        <dialog ref={expenseDialogRef} className={`expense-entry-dialog${expenseVisible ? " is-visible" : ""}`} aria-labelledby="expense-entry-title" onCancel={(event) => { event.preventDefault(); closeExpense(); }} onClose={handleExpenseDialogClose}>
+          <button type="button" className="expense-entry-backdrop" onClick={() => closeExpense()} tabIndex={-1} aria-label="Cerrar nuevo gasto" />
+          <section className="expense-sheet" onTransitionEnd={(event) => { if (event.target === event.currentTarget && event.propertyName === "transform" && !expenseVisible) finishExpenseClose(); }}>
             <div className="expense-sheet-heading">
               <span className="expense-sheet-handle" aria-hidden="true" />
               <header className="editor-header">
                 <div><p className="eyebrow">Nuevo movimiento</p><h1 id="expense-entry-title">Registrar gasto</h1></div>
-                <button type="button" className="icon-button sheet-close" onClick={closeExpense} aria-label="Cerrar nuevo gasto"><X aria-hidden="true" /></button>
+                <button type="button" className="icon-button sheet-close" onClick={() => closeExpense()} aria-label="Cerrar nuevo gasto"><X aria-hidden="true" /></button>
               </header>
             </div>
 
