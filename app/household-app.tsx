@@ -420,6 +420,7 @@ export function HouseholdApp() {
   const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, signIn, signOut } = useExpenses();
   const [view, setView] = useState<"home" | "movements" | "accounts">("home");
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [expenseVisible, setExpenseVisible] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [savingSettlement, setSavingSettlement] = useState(false);
@@ -437,7 +438,6 @@ export function HouseholdApp() {
   const [paymentsAutomatic, setPaymentsAutomatic] = useState(true);
   const [allocationsAutomatic, setAllocationsAutomatic] = useState(true);
   const expenseDialogRef = useRef<HTMLDialogElement>(null);
-  const expenseCloseButtonRef = useRef<HTMLButtonElement>(null);
 
   const totalCents = eurosToCents(total);
   const sortedExpenses = useMemo(
@@ -485,10 +485,18 @@ export function HouseholdApp() {
   useEffect(() => {
     if (!expenseOpen) return;
     const dialog = expenseDialogRef.current;
-    if (dialog && !dialog.open) {
-      dialog.showModal();
-      expenseCloseButtonRef.current?.focus();
-    }
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+
+    let revealFrame = 0;
+    const prepareFrame = window.requestAnimationFrame(() => {
+      revealFrame = window.requestAnimationFrame(() => setExpenseVisible(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(prepareFrame);
+      window.cancelAnimationFrame(revealFrame);
+    };
   }, [expenseOpen]);
 
   if (isFirebaseConfigured && (mode === "auth-required" || (mode === "connecting" && expenses.length === 0))) {
@@ -498,6 +506,7 @@ export function HouseholdApp() {
   function openExpense() {
     setNotice("");
     setSelectedExpense(null);
+    setExpenseVisible(false);
     setExpenseOpen(true);
   }
 
@@ -738,14 +747,14 @@ export function HouseholdApp() {
         </nav>
       </section>
       {expenseOpen ? (
-        <dialog ref={expenseDialogRef} className="expense-entry-dialog" aria-labelledby="expense-entry-title" onClose={() => setExpenseOpen(false)}>
+        <dialog ref={expenseDialogRef} className={`expense-entry-dialog${expenseVisible ? " is-visible" : ""}`} aria-labelledby="expense-entry-title" onClose={() => { setExpenseVisible(false); setExpenseOpen(false); }}>
           <button type="button" className="expense-entry-backdrop" onClick={closeExpense} tabIndex={-1} aria-label="Cerrar nuevo gasto" />
           <section className="expense-sheet">
             <div className="expense-sheet-heading">
               <span className="expense-sheet-handle" aria-hidden="true" />
               <header className="editor-header">
                 <div><p className="eyebrow">Nuevo movimiento</p><h1 id="expense-entry-title">Registrar gasto</h1></div>
-                <button ref={expenseCloseButtonRef} type="button" className="icon-button sheet-close" onClick={closeExpense} aria-label="Cerrar nuevo gasto"><X aria-hidden="true" /></button>
+                <button type="button" className="icon-button sheet-close" onClick={closeExpense} aria-label="Cerrar nuevo gasto"><X aria-hidden="true" /></button>
               </header>
             </div>
 
