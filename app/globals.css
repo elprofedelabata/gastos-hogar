@@ -300,7 +300,6 @@ h2 {
   font-size: 0.8rem;
 }
 
-.month-button,
 .text-action {
   border: 0;
   color: var(--accent);
@@ -309,9 +308,37 @@ h2 {
   cursor: pointer;
 }
 
-.month-button,
 .text-action {
   padding: 4px 0;
+}
+
+.month-selector {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  color: var(--accent);
+}
+
+.month-selector select {
+  max-width: 100%;
+  padding: 4px 22px 4px 4px;
+  border: 0;
+  appearance: none;
+  color: var(--accent);
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: right;
+  cursor: pointer;
+}
+
+.month-selector svg {
+  position: absolute;
+  right: 1px;
+  width: 0.9rem;
+  height: 0.9rem;
+  pointer-events: none;
 }
 
 .text-action {

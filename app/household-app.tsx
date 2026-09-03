@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Car,
   Check,
+  ChevronDown,
   ChevronRight,
   CircleEllipsis,
   Eraser,
@@ -180,6 +181,13 @@ function fullMovementDate(date: string) {
   const parsed = new Date(`${date}T12:00:00`);
   if (Number.isNaN(parsed.getTime())) return date;
   return new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", year: "numeric" }).format(parsed);
+}
+
+function monthLabel(month: string) {
+  const parsed = new Date(`${month}-01T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return month;
+  const label = new Intl.DateTimeFormat("es-ES", { month: "long", year: "numeric" }).format(parsed).replace(" de ", " ");
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 type MovementRowProps = {
@@ -734,6 +742,7 @@ export function HouseholdApp() {
   const [saving, setSaving] = useState(false);
   const [total, setTotal] = useState("48.60");
   const [categoryId, setCategoryId] = useState(defaultExpenseCategories[0].id);
+  const [selectedMonth, setSelectedMonth] = useState(() => localDateValue().slice(0, 7));
   const [date, setDate] = useState(localDateValue);
   const [note, setNote] = useState("");
   const [paymentValues, setPaymentValues] = useState<Record<string, string>>({ dani: "", ana: "" });
@@ -761,7 +770,16 @@ export function HouseholdApp() {
     [totalCents, payments],
   );
   const currentMonth = localDateValue().slice(0, 7);
-  const monthlyExpenses = expenseMovements.filter((expense) => expense.date.startsWith(currentMonth));
+  const availableMonths = useMemo(() => {
+    const months = new Set([currentMonth]);
+    expenses.forEach((expense) => {
+      const month = expense.date.slice(0, 7);
+      if (expense.kind === "expense" && /^\d{4}-(0[1-9]|1[0-2])$/.test(month)) months.add(month);
+    });
+    return [...months].sort((left, right) => right.localeCompare(left));
+  }, [currentMonth, expenses]);
+  const activeMonth = availableMonths.includes(selectedMonth) ? selectedMonth : currentMonth;
+  const monthlyExpenses = expenseMovements.filter((expense) => expense.date.startsWith(activeMonth));
   const monthlyTotalCents = monthlyExpenses.reduce((sum, expense) => sum + expense.amountCents, 0);
   const budgetPercent = Math.min(100, Math.round((monthlyTotalCents / monthlyBudgetCents) * 100));
   const currentBalanceCents = sortedExpenses.reduce(
@@ -1009,7 +1027,13 @@ export function HouseholdApp() {
                   <section className="summary-card" aria-label="Resumen mensual">
                     <div className="summary-heading">
                       <span>Gastos del mes</span>
-                      <button type="button" className="month-button">Agosto 2026 <span aria-hidden="true">⌄</span></button>
+                      <label className="month-selector">
+                        <span className="sr-only">Mes del resumen</span>
+                        <select value={activeMonth} onChange={(event) => setSelectedMonth(event.target.value)} aria-label="Mes del resumen">
+                          {availableMonths.map((month) => <option value={month} key={month}>{monthLabel(month)}</option>)}
+                        </select>
+                        <ChevronDown aria-hidden="true" />
+                      </label>
                     </div>
                     <p className="monthly-total">{formatEuros(monthlyTotalCents)}</p>
                     <div className="budget-copy">
