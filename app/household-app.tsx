@@ -1,18 +1,23 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowDown,
   ArrowLeftRight,
   ArrowRight,
+  ArrowUp,
   CalendarDays,
+  Car,
   Check,
   ChevronRight,
+  CircleEllipsis,
   Eraser,
+  HeartPulse,
   House,
   List,
   LockKeyhole,
   LogOut,
   Menu,
+  PartyPopper,
   Plus,
-  ReceiptText,
   Scale,
   ShoppingBasket,
   Tag,
@@ -33,8 +38,12 @@ import {
   type MoneyShares,
 } from "@/lib/domain";
 import {
+  categoryIconNames,
+  defaultExpenseCategories,
   useExpenses,
+  type CategoryIconName,
   type Expense,
+  type ExpenseCategory,
   type ExpenseStoreMode,
   type HouseholdSettings,
 } from "@/lib/expenses";
@@ -52,7 +61,18 @@ const defaultProfiles: Profile[] = [
 
 const currentProfileId = "dani";
 const expenseSheetTransitionMs = 360;
-const categories = ["Supermercado", "Suministros", "Vivienda", "Transporte", "Ocio", "Salud", "Otros"];
+
+const categoryIconLabels: Record<CategoryIconName, string> = {
+  basket: "Compra",
+  bolt: "Energía",
+  home: "Casa",
+  car: "Transporte",
+  leisure: "Ocio",
+  health: "Salud",
+  other: "Otros",
+};
+
+const categoryColors = ["#16866b", "#c77820", "#7458c7", "#3979bd", "#bd5685", "#c95050", "#68778a"];
 
 function localDateValue() {
   const now = new Date();
@@ -116,12 +136,33 @@ function differenceMessage(difference: number, label: string) {
     : `Sobran ${formatEuros(Math.abs(difference))} en ${label}`;
 }
 
-function categoryIcon(category: string) {
-  if (category === "Ajuste") return <ArrowLeftRight />;
-  if (category === "Supermercado") return <ShoppingBasket />;
-  if (category === "Suministros") return <Zap />;
-  if (category === "Vivienda") return <House />;
-  return <ReceiptText />;
+function categoryIcon(icon: CategoryIconName | "settlement") {
+  if (icon === "settlement") return <ArrowLeftRight />;
+  if (icon === "basket") return <ShoppingBasket />;
+  if (icon === "bolt") return <Zap />;
+  if (icon === "home") return <House />;
+  if (icon === "car") return <Car />;
+  if (icon === "leisure") return <PartyPopper />;
+  if (icon === "health") return <HeartPulse />;
+  return <CircleEllipsis />;
+}
+
+function categoryStyle(category: ExpenseCategory): CSSProperties {
+  return { "--category-color": category.color } as CSSProperties;
+}
+
+function normalizedCategoryKey(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function categoryForExpense(expense: Expense, categories: ExpenseCategory[]): ExpenseCategory {
+  const configured = categories.find((category) => category.id === expense.categoryId)
+    ?? categories.find((category) => category.name.toLocaleLowerCase("es") === expense.category.toLocaleLowerCase("es"))
+    ?? categories.find((category) => category.id === normalizedCategoryKey(expense.category));
+  if (configured) return configured;
+
+  const legacy = defaultExpenseCategories.find((category) => category.id === normalizedCategoryKey(expense.category));
+  return legacy ? { ...legacy, name: expense.category } : { id: "historical", name: expense.category, icon: "other", color: "#68778a" };
 }
 
 function movementDate(date: string) {
@@ -144,16 +185,18 @@ function fullMovementDate(date: string) {
 type MovementRowProps = {
   expense: Expense;
   profiles: Profile[];
+  categories: ExpenseCategory[];
   onOpen: (expense: Expense) => void;
 };
 
-function MovementRow({ expense, profiles, onOpen }: MovementRowProps) {
+function MovementRow({ expense, profiles, categories, onOpen }: MovementRowProps) {
   const isSettlement = expense.kind === "settlement";
+  const expenseCategory = categoryForExpense(expense, categories);
 
   return (
     <button className={`movement-row${isSettlement ? " is-settlement" : ""}`} type="button" onClick={() => onOpen(expense)}>
       <span className="movement-main">
-        <span className="category-mark" aria-hidden="true">{categoryIcon(expense.category)}</span>
+        <span className="category-mark" style={isSettlement ? undefined : categoryStyle(expenseCategory)} aria-hidden="true">{categoryIcon(isSettlement ? "settlement" : expenseCategory.icon)}</span>
         <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · {isSettlement ? settlementDescription(expense, profiles) : `pagado por ${paidBy(expense, profiles)}`}</small></span>
       </span>
       <span className="movement-amount">{isSettlement ? formatEuros(expense.amountCents) : `−${formatEuros(expense.amountCents)}`}</span>
@@ -164,12 +207,13 @@ function MovementRow({ expense, profiles, onOpen }: MovementRowProps) {
 type ExpenseDetailModalProps = {
   expense: Expense;
   profiles: Profile[];
+  categories: ExpenseCategory[];
   currentProfile: Profile;
   onDelete: (expense: Expense) => Promise<void>;
   onClose: () => void;
 };
 
-function ExpenseDetailModal({ expense, profiles, currentProfile, onDelete, onClose }: ExpenseDetailModalProps) {
+function ExpenseDetailModal({ expense, profiles, categories, currentProfile, onDelete, onClose }: ExpenseDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -181,6 +225,7 @@ function ExpenseDetailModal({ expense, profiles, currentProfile, onDelete, onClo
   const currentBalanceImpact = movementBalanceDeltaFor(currentProfile.id, expense);
   const settlementFrom = profileFor(expense.settlementFromProfileId ?? "", profiles);
   const settlementTo = profileFor(expense.settlementToProfileId ?? "", profiles);
+  const expenseCategory = categoryForExpense(expense, categories);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -217,8 +262,8 @@ function ExpenseDetailModal({ expense, profiles, currentProfile, onDelete, onClo
       <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cerrar detalle" disabled={deleting} />
       <div className="expense-dialog-content">
         <header className="expense-dialog-header">
-          <span className="expense-dialog-icon" aria-hidden="true">{categoryIcon(expense.category)}</span>
-          <div><p className="eyebrow">{expense.category}</p><h2 id="expense-detail-title">{expense.name}</h2></div>
+          <span className="expense-dialog-icon category-themed-icon" style={isSettlement ? undefined : categoryStyle(expenseCategory)} aria-hidden="true">{categoryIcon(isSettlement ? "settlement" : expenseCategory.icon)}</span>
+          <div><p className="eyebrow">{isSettlement ? "Ajuste" : expenseCategory.name}</p><h2 id="expense-detail-title">{expense.name}</h2></div>
           <button ref={closeButtonRef} type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar detalle" disabled={deleting}><X aria-hidden="true" /></button>
         </header>
 
@@ -364,6 +409,7 @@ function HouseholdSettingsModal({ setting, settings, onSave, onClose }: Househol
         householdName: householdName.trim(),
         profileNames: { dani: daniName.trim(), ana: anaName.trim() },
         monthlyBudgetCents: budgetCents,
+        categories: settings.categories,
       });
       dialogRef.current?.close();
     } catch {
@@ -400,6 +446,135 @@ function HouseholdSettingsModal({ setting, settings, onSave, onClose }: Househol
           <div className="household-settings-actions">
             <button type="button" className="secondary-action" onClick={requestClose} disabled={saving}>Cancelar</button>
             <button type="submit" className="save-action" disabled={!valid || saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+  );
+}
+
+type CategoriesManagerModalProps = {
+  settings: HouseholdSettings;
+  onSave: (settings: HouseholdSettings) => Promise<void>;
+  onClose: () => void;
+};
+
+function CategoriesManagerModal({ settings, onSave, onClose }: CategoriesManagerModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
+  const [draftCategories, setDraftCategories] = useState(() => settings.categories.map((category) => ({ ...category })));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const normalizedNames = draftCategories.map((category) => category.name.trim().toLocaleLowerCase("es"));
+  const hasDuplicateNames = new Set(normalizedNames).size !== normalizedNames.length;
+  const valid = draftCategories.length > 0 && draftCategories.every((category) => category.name.trim()) && !hasDuplicateNames;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      firstInputRef.current?.focus();
+    }
+  }, []);
+
+  function requestClose() {
+    if (!saving) dialogRef.current?.close();
+  }
+
+  function updateCategory(categoryId: string, changes: Partial<ExpenseCategory>) {
+    setDraftCategories((current) => current.map((category) => category.id === categoryId ? { ...category, ...changes } : category));
+  }
+
+  function moveCategory(index: number, direction: -1 | 1) {
+    const destination = index + direction;
+    if (destination < 0 || destination >= draftCategories.length) return;
+    setDraftCategories((current) => {
+      const next = [...current];
+      [next[index], next[destination]] = [next[destination], next[index]];
+      return next;
+    });
+  }
+
+  function deleteCategory(categoryId: string) {
+    if (draftCategories.length <= 1) return;
+    setDraftCategories((current) => current.filter((category) => category.id !== categoryId));
+  }
+
+  function addCategory() {
+    if (draftCategories.length >= 12) return;
+    const nextNumber = draftCategories.length + 1;
+    setDraftCategories((current) => [...current, {
+      id: `category-${crypto.randomUUID()}`,
+      name: `Nueva categoría ${nextNumber}`,
+      icon: "other",
+      color: categoryColors[nextNumber % categoryColors.length],
+    }]);
+    window.setTimeout(() => {
+      const inputs = dialogRef.current?.querySelectorAll<HTMLInputElement>(".category-name-input");
+      const lastInput = inputs?.[inputs.length - 1];
+      lastInput?.focus();
+      lastInput?.select();
+    }, 0);
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!valid || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        ...settings,
+        categories: draftCategories.map((category) => ({ ...category, name: category.name.trim() })),
+      });
+      dialogRef.current?.close();
+    } catch {
+      setError("No se han podido guardar las categorías. Comprueba la conexión e inténtalo de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog ref={dialogRef} className="expense-dialog categories-manager-dialog" aria-labelledby="categories-manager-title" onCancel={(event) => { event.preventDefault(); requestClose(); }} onClose={onClose}>
+      <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cerrar categorías" disabled={saving} />
+      <div className="expense-dialog-content">
+        <header className="expense-dialog-header">
+          <span className="expense-dialog-icon" aria-hidden="true"><Tag /></span>
+          <div><p className="eyebrow">Personalización</p><h2 id="categories-manager-title">Gestionar categorías</h2></div>
+          <button type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar categorías" disabled={saving}><X aria-hidden="true" /></button>
+        </header>
+
+        <form className="categories-manager-form" onSubmit={submit}>
+          <div className="category-editor-list">
+            {draftCategories.map((category, index) => (
+              <section className="category-editor-row" style={categoryStyle(category)} key={category.id} aria-label={`Categoría ${index + 1}`}>
+                <div className="category-editor-main">
+                  <span className="category-editor-icon" aria-hidden="true">{categoryIcon(category.icon)}</span>
+                  <label><span className="sr-only">Nombre de la categoría</span><input ref={index === 0 ? firstInputRef : undefined} className="category-name-input" type="text" value={category.name} onChange={(event) => updateCategory(category.id, { name: event.target.value })} maxLength={30} required /></label>
+                  <button type="button" className="category-delete-action" onClick={() => deleteCategory(category.id)} disabled={draftCategories.length <= 1 || saving} aria-label={`Eliminar ${category.name}`} title="Eliminar categoría"><Trash2 aria-hidden="true" /></button>
+                </div>
+                <div className="category-editor-options">
+                  <label className="category-icon-select"><span className="sr-only">Icono de {category.name}</span><select value={category.icon} onChange={(event) => updateCategory(category.id, { icon: event.target.value as CategoryIconName })}>{categoryIconNames.map((icon) => <option value={icon} key={icon}>{categoryIconLabels[icon]}</option>)}</select></label>
+                  <div className="category-color-options" aria-label={`Color de ${category.name}`}>
+                    {categoryColors.map((color) => <button type="button" className={category.color === color ? "is-selected" : ""} style={{ backgroundColor: color }} onClick={() => updateCategory(category.id, { color })} aria-label={`Elegir color ${color}`} aria-pressed={category.color === color} key={color} />)}
+                  </div>
+                  <div className="category-order-actions">
+                    <button type="button" onClick={() => moveCategory(index, -1)} disabled={index === 0 || saving} aria-label={`Subir ${category.name}`} title="Subir"><ArrowUp aria-hidden="true" /></button>
+                    <button type="button" onClick={() => moveCategory(index, 1)} disabled={index === draftCategories.length - 1 || saving} aria-label={`Bajar ${category.name}`} title="Bajar"><ArrowDown aria-hidden="true" /></button>
+                  </div>
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <button type="button" className="add-category-action" onClick={addCategory} disabled={draftCategories.length >= 12 || saving}><Plus aria-hidden="true" />{draftCategories.length >= 12 ? "Máximo de 12 categorías" : "Añadir categoría"}</button>
+          <p className="categories-history-note">Los movimientos guardados conservarán su categoría aunque la elimines de esta lista.</p>
+          {hasDuplicateNames ? <p className="form-error" role="alert">No puede haber dos categorías con el mismo nombre.</p> : null}
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <div className="household-settings-actions categories-manager-actions">
+            <button type="button" className="secondary-action" onClick={requestClose} disabled={saving}>Cancelar</button>
+            <button type="submit" className="save-action" disabled={!valid || saving}>{saving ? "Guardando…" : "Guardar categorías"}</button>
           </div>
         </form>
       </div>
@@ -553,11 +728,12 @@ export function HouseholdApp() {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [editingHouseholdSetting, setEditingHouseholdSetting] = useState<HouseholdSettingKey | null>(null);
+  const [categoriesManagerOpen, setCategoriesManagerOpen] = useState(false);
   const [savingSettlement, setSavingSettlement] = useState(false);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [total, setTotal] = useState("48.60");
-  const [category, setCategory] = useState("Supermercado");
+  const [categoryId, setCategoryId] = useState(defaultExpenseCategories[0].id);
   const [date, setDate] = useState(localDateValue);
   const [note, setNote] = useState("");
   const [paymentValues, setPaymentValues] = useState<Record<string, string>>({ dani: "", ana: "" });
@@ -571,6 +747,8 @@ export function HouseholdApp() {
   }), [householdSettings.profileNames.ana, householdSettings.profileNames.dani]);
   const currentProfile = profileFor(currentProfileId, profiles);
   const monthlyBudgetCents = householdSettings.monthlyBudgetCents;
+  const categories = householdSettings.categories;
+  const selectedCategory = categories.find((category) => category.id === categoryId) ?? categories[0];
   const totalCents = eurosToCents(total);
   const sortedExpenses = useMemo(
     () => [...expenses].sort((left, right) => right.date.localeCompare(left.date) || right.createdAtMillis - left.createdAtMillis),
@@ -686,6 +864,7 @@ export function HouseholdApp() {
   function openHome() {
     setSelectedExpense(null);
     setEditingHouseholdSetting(null);
+    setCategoriesManagerOpen(false);
     setView("home");
   }
 
@@ -693,6 +872,7 @@ export function HouseholdApp() {
     setNotice("");
     setSelectedExpense(null);
     setEditingHouseholdSetting(null);
+    setCategoriesManagerOpen(false);
     setView("movements");
   }
 
@@ -701,6 +881,7 @@ export function HouseholdApp() {
     setSelectedExpense(null);
     setSettlementOpen(false);
     setEditingHouseholdSetting(null);
+    setCategoriesManagerOpen(false);
     setView("accounts");
   }
 
@@ -709,6 +890,7 @@ export function HouseholdApp() {
     setSelectedExpense(null);
     setSettlementOpen(false);
     setEditingHouseholdSetting(null);
+    setCategoriesManagerOpen(false);
     setView("more");
   }
 
@@ -745,7 +927,7 @@ export function HouseholdApp() {
   function resetDraft() {
     const defaultCents = 4_860;
     setTotal(centsToInput(defaultCents));
-    setCategory("Supermercado");
+    setCategoryId(categories[0]?.id ?? defaultExpenseCategories[0].id);
     setDate(localDateValue());
     setNote("");
     setPaymentValues({ dani: "", ana: "" });
@@ -753,10 +935,10 @@ export function HouseholdApp() {
 
   async function saveExpense(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!validation.valid || saving) return;
+    if (!validation.valid || !selectedCategory || saving) return;
     setSaving(true);
     try {
-      await addExpense({ name: note.trim() || category, category, date, amountCents: totalCents, payments });
+      await addExpense({ name: note.trim() || selectedCategory.name, category: selectedCategory.name, categoryId: selectedCategory.id, date, amountCents: totalCents, payments });
       setNotice(mode === "synced" ? "Gasto guardado y sincronizado" : "Gasto guardado en este dispositivo");
       closeExpense(() => {
         setView("home");
@@ -797,6 +979,11 @@ export function HouseholdApp() {
   async function saveHouseholdSettings(settings: HouseholdSettings) {
     await updateHouseholdSettings(settings);
     setNotice(mode === "synced" ? "Configuración guardada y sincronizada" : "Configuración guardada en este dispositivo");
+  }
+
+  async function saveCategories(settings: HouseholdSettings) {
+    await updateHouseholdSettings(settings);
+    setNotice(mode === "synced" ? "Categorías guardadas y sincronizadas" : "Categorías guardadas en este dispositivo");
   }
 
   const validationMessages = [
@@ -848,7 +1035,7 @@ export function HouseholdApp() {
                   <div className="section-heading"><h2 id="recent-title">Movimientos recientes</h2><button type="button" className="text-action" onClick={openMovements}>Ver todos</button></div>
                   <div className="movement-list">
                     {sortedExpenses.length
-                      ? sortedExpenses.slice(0, 3).map((expense) => <MovementRow expense={expense} profiles={profiles} onOpen={setSelectedExpense} key={expense.id} />)
+                      ? sortedExpenses.slice(0, 3).map((expense) => <MovementRow expense={expense} profiles={profiles} categories={categories} onOpen={setSelectedExpense} key={expense.id} />)
                       : <p className="empty-state">Todavía no hay gastos. Añade el primero cuando quieras.</p>}
                   </div>
                 </section>
@@ -872,7 +1059,7 @@ export function HouseholdApp() {
                   <div className="section-heading"><h2 id="all-movements-title">Todos los movimientos</h2></div>
                   <div className="movement-list">
                     {sortedExpenses.length
-                      ? sortedExpenses.map((expense) => <MovementRow expense={expense} profiles={profiles} onOpen={setSelectedExpense} key={expense.id} />)
+                      ? sortedExpenses.map((expense) => <MovementRow expense={expense} profiles={profiles} categories={categories} onOpen={setSelectedExpense} key={expense.id} />)
                       : <p className="empty-state">Todavía no hay movimientos registrados.</p>}
                   </div>
                 </section>
@@ -951,12 +1138,12 @@ export function HouseholdApp() {
                   <div className="more-section-heading"><div><h2 id="categories-title">Categorías</h2><p>Personaliza cómo organizas tus gastos</p></div></div>
                   <div className="more-card categories-preview">
                     <div className="category-preview-grid">
-                      {categories.map((category) => <span className="category-preview-item" key={category}><i aria-hidden="true">{categoryIcon(category)}</i>{category}</span>)}
+                      {categories.map((category) => <span className="category-preview-item" style={categoryStyle(category)} key={category.id}><i aria-hidden="true">{categoryIcon(category.icon)}</i>{category.name}</span>)}
                     </div>
-                    <div className="manage-categories-row">
+                    <button type="button" className="manage-categories-row" onClick={() => setCategoriesManagerOpen(true)}>
                       <span><strong>Gestionar categorías</strong><small>Iconos, colores y orden</small></span>
                       <ChevronRight className="more-chevron" aria-hidden="true" />
-                    </div>
+                    </button>
                   </div>
                 </section>
               </div>
@@ -995,7 +1182,7 @@ export function HouseholdApp() {
               </div>
 
               <div className="basic-fields">
-                <label className="select-field"><Tag aria-hidden="true" /><span><small>Categoría</small><select value={category} onChange={(event) => setCategory(event.target.value)}>{categories.map((option) => <option key={option}>{option}</option>)}</select></span></label>
+                <label className="select-field"><Tag aria-hidden="true" /><span><small>Categoría</small><select value={selectedCategory?.id ?? ""} onChange={(event) => setCategoryId(event.target.value)}>{categories.map((option) => <option value={option.id} key={option.id}>{option.name}</option>)}</select></span></label>
                 <label className="date-field"><CalendarDays aria-hidden="true" /><span><small>Fecha</small><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></span></label>
               </div>
 
@@ -1031,9 +1218,10 @@ export function HouseholdApp() {
           </section>
         </dialog>
       ) : null}
-      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} profiles={profiles} currentProfile={currentProfile} onDelete={deleteMovement} onClose={() => setSelectedExpense(null)} /> : null}
+      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} profiles={profiles} categories={categories} currentProfile={currentProfile} onDelete={deleteMovement} onClose={() => setSelectedExpense(null)} /> : null}
       {settlementOpen && settlementProposal ? <SettlementConfirmModal proposal={settlementProposal} saving={savingSettlement} onConfirm={confirmSettlement} onClose={() => setSettlementOpen(false)} /> : null}
       {editingHouseholdSetting ? <HouseholdSettingsModal key={editingHouseholdSetting} setting={editingHouseholdSetting} settings={householdSettings} onSave={saveHouseholdSettings} onClose={() => setEditingHouseholdSetting(null)} /> : null}
+      {categoriesManagerOpen ? <CategoriesManagerModal settings={householdSettings} onSave={saveCategories} onClose={() => setCategoriesManagerOpen(false)} /> : null}
     </main>
   );
 }

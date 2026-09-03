@@ -58,6 +58,17 @@ svg {
   stroke-width: 1.8;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 h1,
 h2,
 p {
@@ -460,8 +471,8 @@ h2 {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 13px;
-  color: var(--accent);
-  background: var(--surface-soft);
+  color: var(--category-color, var(--accent));
+  background: color-mix(in srgb, var(--category-color, var(--accent)) 12%, var(--surface));
 }
 
 .movement-amount {
@@ -847,8 +858,8 @@ h2 {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 9px;
-  color: var(--accent);
-  background: var(--surface-soft);
+  color: var(--category-color, var(--accent));
+  background: color-mix(in srgb, var(--category-color, var(--accent)) 12%, var(--surface));
 }
 
 .category-preview-item svg {
@@ -858,12 +869,22 @@ h2 {
 
 .manage-categories-row {
   display: flex;
+  width: 100%;
   min-height: 58px;
   align-items: center;
   gap: 12px;
   margin-top: 12px;
   padding: 12px 3px 0;
+  border: 0;
   border-top: 1px solid var(--line);
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.manage-categories-row:hover {
+  color: var(--accent);
 }
 
 .manage-categories-row > span {
@@ -888,6 +909,164 @@ h2 {
 
 .household-settings-dialog .expense-dialog-content {
   width: min(100%, 480px);
+}
+
+.category-themed-icon {
+  color: var(--category-color, var(--accent));
+  background: color-mix(in srgb, var(--category-color, var(--accent)) 12%, var(--surface));
+}
+
+.categories-manager-dialog .expense-dialog-content {
+  width: min(100%, 620px);
+}
+
+.categories-manager-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.category-editor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.category-editor-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--screen);
+}
+
+.category-editor-main {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 9px;
+}
+
+.category-editor-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--category-color, var(--accent));
+  background: color-mix(in srgb, var(--category-color, var(--accent)) 12%, var(--surface));
+}
+
+.category-editor-main label {
+  min-width: 0;
+}
+
+.category-name-input,
+.category-icon-select select {
+  width: 100%;
+  border: 1px solid var(--line);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.category-name-input {
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 11px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.category-delete-action,
+.category-order-actions button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.category-delete-action:hover {
+  color: var(--negative);
+  border-color: color-mix(in srgb, var(--negative) 35%, var(--line));
+}
+
+.category-editor-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding-left: 47px;
+}
+
+.category-icon-select select {
+  min-height: 34px;
+  padding: 5px 8px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+}
+
+.category-color-options {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.category-color-options button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+}
+
+.category-color-options button.is-selected {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.category-order-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.category-order-actions button:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.category-order-actions svg,
+.category-delete-action svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.add-category-action {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 14px;
+  color: var(--accent);
+  background: var(--surface-soft);
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.categories-history-note {
+  margin: -2px 2px 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
 }
 
 .household-settings-form {

@@ -30,6 +30,7 @@ export type Expense = {
   kind: "expense" | "settlement";
   name: string;
   category: string;
+  categoryId?: string;
   date: string;
   amountCents: number;
   payments: MoneyShares;
@@ -48,6 +49,17 @@ export type SettlementDraftRecord = {
   toProfileId: string;
 };
 
+export const categoryIconNames = ["basket", "bolt", "home", "car", "leisure", "health", "other"] as const;
+
+export type CategoryIconName = typeof categoryIconNames[number];
+
+export type ExpenseCategory = {
+  id: string;
+  name: string;
+  icon: CategoryIconName;
+  color: string;
+};
+
 export type HouseholdSettings = {
   householdName: string;
   profileNames: {
@@ -55,6 +67,7 @@ export type HouseholdSettings = {
     ana: string;
   };
   monthlyBudgetCents: number;
+  categories: ExpenseCategory[];
 };
 
 export type ExpenseStoreMode =
@@ -68,14 +81,57 @@ const LOCAL_STORAGE_KEY = "mi-casa-expenses-v1";
 const LOCAL_SETTINGS_KEY = "mi-casa-settings-v1";
 const householdProfileIds = ["dani", "ana"];
 
+export const defaultExpenseCategories: ExpenseCategory[] = [
+  { id: "supermercado", name: "Supermercado", icon: "basket", color: "#16866b" },
+  { id: "suministros", name: "Suministros", icon: "bolt", color: "#c77820" },
+  { id: "vivienda", name: "Vivienda", icon: "home", color: "#7458c7" },
+  { id: "transporte", name: "Transporte", icon: "car", color: "#3979bd" },
+  { id: "ocio", name: "Ocio", icon: "leisure", color: "#bd5685" },
+  { id: "salud", name: "Salud", icon: "health", color: "#c95050" },
+  { id: "otros", name: "Otros", icon: "other", color: "#68778a" },
+];
+
 export const defaultHouseholdSettings: HouseholdSettings = {
   householdName: "Mi casa",
   profileNames: { dani: "Dani", ana: "Tati" },
   monthlyBudgetCents: 180_000,
+  categories: defaultExpenseCategories,
 };
 
 function normalizedName(value: unknown, fallback: string) {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, 40) : fallback;
+}
+
+function normalizeCategories(value: unknown): ExpenseCategory[] {
+  if (!Array.isArray(value)) return defaultExpenseCategories;
+
+  const allowedIcons = new Set<string>(categoryIconNames);
+  const usedIds = new Set<string>();
+  const usedNames = new Set<string>();
+  const normalized = value.flatMap((entry, index): ExpenseCategory[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const data = entry as Record<string, unknown>;
+    const name = typeof data.name === "string" ? data.name.trim().slice(0, 30) : "";
+    const comparableName = name.toLocaleLowerCase("es");
+    if (!name || usedNames.has(comparableName)) return [];
+
+    const proposedId = typeof data.id === "string"
+      ? data.id.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 48)
+      : "";
+    let id = proposedId || `categoria-${index + 1}`;
+    while (usedIds.has(id)) id = `${id}-${index + 1}`;
+
+    const icon = allowedIcons.has(String(data.icon)) ? data.icon as CategoryIconName : "other";
+    const color = typeof data.color === "string" && /^#[0-9a-f]{6}$/i.test(data.color)
+      ? data.color.toLowerCase()
+      : "#68778a";
+
+    usedIds.add(id);
+    usedNames.add(comparableName);
+    return [{ id, name, icon, color }];
+  }).slice(0, 12);
+
+  return normalized.length > 0 ? normalized : defaultExpenseCategories;
 }
 
 function normalizeHouseholdSettings(value: unknown): HouseholdSettings {
@@ -94,6 +150,7 @@ function normalizeHouseholdSettings(value: unknown): HouseholdSettings {
     monthlyBudgetCents: Number.isSafeInteger(rawBudget) && rawBudget > 0
       ? rawBudget
       : defaultHouseholdSettings.monthlyBudgetCents,
+    categories: normalizeCategories(data.categories),
   };
 }
 
@@ -124,6 +181,7 @@ const demoExpenses: Expense[] = [
     kind: "expense",
     name: "Mercadona",
     category: "Supermercado",
+    categoryId: "supermercado",
     date: "2026-08-22",
     amountCents: 6_235,
     payments: { dani: 6_235 },
@@ -135,6 +193,7 @@ const demoExpenses: Expense[] = [
     kind: "expense",
     name: "Electricidad",
     category: "Suministros",
+    categoryId: "suministros",
     date: "2026-08-21",
     amountCents: 7_810,
     payments: { ana: 7_810 },
@@ -146,6 +205,7 @@ const demoExpenses: Expense[] = [
     kind: "expense",
     name: "Internet",
     category: "Suministros",
+    categoryId: "suministros",
     date: "2026-08-18",
     amountCents: 3_990,
     payments: { dani: 3_990 },
@@ -191,6 +251,7 @@ function expenseFromDocument(snapshot: QueryDocumentSnapshot<DocumentData>): Exp
     kind,
     name: String(data.name ?? data.category ?? "Gasto"),
     category: String(data.category ?? "Otros"),
+    categoryId: data.categoryId ? String(data.categoryId) : undefined,
     date: String(data.date ?? ""),
     amountCents,
     payments: (data.payments ?? {}) as MoneyShares,
