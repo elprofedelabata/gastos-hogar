@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  ChevronRight,
   Eraser,
   House,
   List,
@@ -12,11 +13,14 @@ import {
   Menu,
   Plus,
   ReceiptText,
+  Repeat2,
   Scale,
   ShoppingBasket,
   Tag,
   Trash2,
+  UsersRound,
   WandSparkles,
+  WalletCards,
   X,
   Zap,
 } from "lucide-react";
@@ -446,7 +450,7 @@ function AccessScreen({ mode, onSignIn }: AccessScreenProps) {
 
 export function HouseholdApp() {
   const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, deleteExpense, signIn, signOut } = useExpenses();
-  const [view, setView] = useState<"home" | "movements" | "accounts">("home");
+  const [view, setView] = useState<"home" | "movements" | "accounts" | "more">("home");
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expenseVisible, setExpenseVisible] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
@@ -591,6 +595,13 @@ export function HouseholdApp() {
     setSelectedExpense(null);
     setSettlementOpen(false);
     setView("accounts");
+  }
+
+  function openMore() {
+    setNotice("");
+    setSelectedExpense(null);
+    setSettlementOpen(false);
+    setView("more");
   }
 
   function updateTotal(nextValue: string) {
@@ -754,7 +765,7 @@ export function HouseholdApp() {
                 </section>
               </div>
             </>
-          ) : (
+          ) : view === "accounts" ? (
             <>
               <header className="topbar accounts-header">
                 <div><p className="eyebrow">Balance compartido</p><h1>Cuentas</h1></div>
@@ -791,6 +802,59 @@ export function HouseholdApp() {
                 </section>
               </div>
             </>
+          ) : (
+            <>
+              <header className="topbar more-header">
+                <div><p className="eyebrow">Personaliza tu experiencia</p><h1>Más</h1></div>
+                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
+              </header>
+
+              <div className="page-content more-page">
+                <section className="more-section" aria-labelledby="household-settings-title">
+                  <div className="more-section-heading"><div><h2 id="household-settings-title">Mi hogar</h2><p>Datos básicos y presupuesto compartido</p></div></div>
+                  <div className="more-card more-settings-card">
+                    <div className="more-setting-row">
+                      <span className="more-setting-icon" aria-hidden="true"><House /></span>
+                      <span className="more-setting-copy"><strong>Nombre del hogar</strong><small>Mi casa</small></span>
+                      <ChevronRight className="more-chevron" aria-hidden="true" />
+                    </div>
+                    <div className="more-setting-row">
+                      <span className="more-setting-icon" aria-hidden="true"><UsersRound /></span>
+                      <span className="more-setting-copy"><strong>Personas</strong><small>Dani y Tati</small></span>
+                      <span className="more-member-avatars" aria-hidden="true"><i>D</i><i>T</i></span>
+                      <ChevronRight className="more-chevron" aria-hidden="true" />
+                    </div>
+                    <div className="more-setting-row">
+                      <span className="more-setting-icon" aria-hidden="true"><WalletCards /></span>
+                      <span className="more-setting-copy"><strong>Presupuesto mensual</strong><small>{formatEuros(monthlyBudgetCents)}</small></span>
+                      <ChevronRight className="more-chevron" aria-hidden="true" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="more-section" aria-labelledby="recurring-title">
+                  <div className="more-section-heading"><div><h2 id="recurring-title">Gastos recurrentes</h2><p>Organiza los pagos que se repiten</p></div></div>
+                  <div className="more-card recurring-preview">
+                    <span className="recurring-preview-icon" aria-hidden="true"><Repeat2 /></span>
+                    <div><strong>Tus gastos habituales</strong><p>Alquiler, suministros o suscripciones, listos para repetir cada mes.</p></div>
+                    <span className="more-add-action" aria-hidden="true"><Plus />Añadir recurrente</span>
+                  </div>
+                </section>
+
+                <section className="more-section" aria-labelledby="categories-title">
+                  <div className="more-section-heading"><div><h2 id="categories-title">Categorías</h2><p>Personaliza cómo organizas tus gastos</p></div></div>
+                  <div className="more-card categories-preview">
+                    <div className="category-preview-grid">
+                      {categories.map((category) => <span className="category-preview-item" key={category}><i aria-hidden="true">{categoryIcon(category)}</i>{category}</span>)}
+                    </div>
+                    <div className="manage-categories-row">
+                      <span><strong>Gestionar categorías</strong><small>Iconos, colores y orden</small></span>
+                      <ChevronRight className="more-chevron" aria-hidden="true" />
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </>
           )}
         </div>
 
@@ -800,7 +864,7 @@ export function HouseholdApp() {
           <button type="button" aria-current={view === "movements" ? "page" : undefined} onClick={openMovements}><List aria-hidden="true" />Movimientos</button>
           <button type="button" className="nav-add" onClick={openExpense} aria-label="Añadir gasto"><Plus aria-hidden="true" /></button>
           <button type="button" aria-current={view === "accounts" ? "page" : undefined} onClick={openAccounts}><Scale aria-hidden="true" />Cuentas</button>
-          <button type="button" disabled><Menu aria-hidden="true" />Más</button>
+          <button type="button" aria-current={view === "more" ? "page" : undefined} onClick={openMore}><Menu aria-hidden="true" />Más</button>
         </nav>
       </section>
       {expenseOpen ? (

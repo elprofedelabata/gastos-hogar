@@ -702,6 +702,216 @@ h2 {
   margin-top: 4px;
 }
 
+.more-page {
+  padding-top: 2px;
+  padding-bottom: 30px;
+}
+
+.more-section + .more-section {
+  margin-top: 24px;
+}
+
+.more-section-heading {
+  margin: 0 2px 10px;
+}
+
+.more-section-heading h2 {
+  font-size: 0.96rem;
+}
+
+.more-section-heading p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 0.73rem;
+}
+
+.more-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.more-setting-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 68px;
+  padding: 11px 14px;
+}
+
+.more-setting-row + .more-setting-row {
+  border-top: 1px solid var(--line);
+}
+
+.more-setting-icon,
+.recurring-preview-icon {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: var(--surface-soft);
+}
+
+.more-setting-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+}
+
+.more-setting-copy strong,
+.more-setting-copy small {
+  display: block;
+}
+
+.more-setting-copy strong {
+  font-size: 0.84rem;
+}
+
+.more-setting-copy small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.71rem;
+}
+
+.more-chevron {
+  width: 1rem;
+  color: var(--muted);
+}
+
+.more-member-avatars {
+  display: flex;
+  padding-left: 7px;
+}
+
+.more-member-avatars i {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  margin-left: -7px;
+  place-items: center;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.more-member-avatars i:last-child {
+  background: #4e8878;
+}
+
+.recurring-preview {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+
+.recurring-preview-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+}
+
+.recurring-preview strong {
+  font-size: 0.86rem;
+}
+
+.recurring-preview p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.more-add-action {
+  display: flex;
+  min-height: 44px;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 2px;
+  border-radius: 14px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-size: 0.79rem;
+  font-weight: 650;
+}
+
+.categories-preview {
+  padding: 14px;
+}
+
+.category-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.category-preview-item {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--screen);
+  font-size: 0.71rem;
+  font-weight: 600;
+}
+
+.category-preview-item i {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--accent);
+  background: var(--surface-soft);
+}
+
+.category-preview-item svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.manage-categories-row {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 3px 0;
+  border-top: 1px solid var(--line);
+}
+
+.manage-categories-row > span {
+  min-width: 0;
+  flex: 1;
+}
+
+.manage-categories-row strong,
+.manage-categories-row small {
+  display: block;
+}
+
+.manage-categories-row strong {
+  font-size: 0.82rem;
+}
+
+.manage-categories-row small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
 .expense-dialog {
   inset: 0;
   width: 100%;
@@ -1449,7 +1659,8 @@ h2 {
 
 .view-home .app-surface,
 .view-movements .app-surface,
-.view-accounts .app-surface {
+.view-accounts .app-surface,
+.view-more .app-surface {
   padding-bottom: calc(57px + max(12px, env(safe-area-inset-bottom)));
 }
 
@@ -1740,8 +1951,23 @@ h2 {
 
   .view-home .app-surface,
   .view-movements .app-surface,
-  .view-accounts .app-surface {
+  .view-accounts .app-surface,
+  .view-more .app-surface {
     padding-bottom: 0;
+  }
+
+  .more-page {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .more-section:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .more-section + .more-section {
+    margin-top: 0;
   }
 
   .nav-brand {
