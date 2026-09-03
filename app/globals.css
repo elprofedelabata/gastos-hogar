@@ -707,6 +707,10 @@ h2 {
   padding-bottom: 30px;
 }
 
+.more-notice {
+  grid-column: 1 / -1;
+}
+
 .more-section + .more-section {
   margin-top: 24px;
 }
@@ -734,15 +738,25 @@ h2 {
 
 .more-setting-row {
   display: grid;
+  width: 100%;
   grid-template-columns: 40px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 11px;
   min-height: 68px;
   padding: 11px 14px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
 .more-setting-row + .more-setting-row {
   border-top: 1px solid var(--line);
+}
+
+.more-setting-row:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .more-setting-icon,
@@ -910,6 +924,98 @@ h2 {
   margin-top: 3px;
   color: var(--muted);
   font-size: 0.7rem;
+}
+
+.household-settings-dialog .expense-dialog-content {
+  width: min(100%, 480px);
+}
+
+.household-settings-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.household-settings-form label,
+.household-people-fields label {
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.household-settings-form input {
+  width: 100%;
+  min-height: 50px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  background: var(--screen);
+  font-weight: 500;
+}
+
+.household-settings-form label > small,
+.household-people-fields > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.household-people-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.household-people-fields label > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.household-people-fields label i {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--accent-ink);
+  background: var(--accent);
+  font-size: 0.62rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.settings-money-input {
+  position: relative;
+}
+
+.settings-money-input input {
+  padding-right: 42px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-money-input span {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.household-settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 10px;
+}
+
+.household-settings-actions .save-action,
+.household-settings-actions .secondary-action {
+  min-height: 50px;
 }
 
 .expense-dialog {
@@ -1962,7 +2068,7 @@ h2 {
     gap: 20px;
   }
 
-  .more-section:first-child {
+  .more-section:first-of-type {
     grid-column: 1 / -1;
   }
 

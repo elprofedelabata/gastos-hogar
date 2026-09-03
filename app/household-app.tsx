@@ -37,6 +37,7 @@ import {
   useExpenses,
   type Expense,
   type ExpenseStoreMode,
+  type HouseholdSettings,
 } from "@/lib/expenses";
 
 type Profile = {
@@ -45,14 +46,13 @@ type Profile = {
   initial: string;
 };
 
-const profiles: Profile[] = [
+const defaultProfiles: Profile[] = [
   { id: "dani", name: "Dani", initial: "D" },
   { id: "ana", name: "Tati", initial: "T" },
 ];
 
 const currentProfileId = "dani";
 const expenseSheetTransitionMs = 360;
-const monthlyBudgetCents = 180_000;
 const categories = ["Supermercado", "Suministros", "Vivienda", "Transporte", "Ocio", "Salud", "Otros"];
 
 function localDateValue() {
@@ -73,21 +73,22 @@ function valuesToShares(values: Record<string, string>): MoneyShares {
   );
 }
 
-function profileName(profileId: string) {
+function profileName(profileId: string, profiles: Profile[]) {
   return profiles.find((profile) => profile.id === profileId)?.name ?? "Persona";
 }
 
-function profileFor(profileId: string): Profile {
+function profileFor(profileId: string, profiles: Profile[]): Profile {
   return profiles.find((profile) => profile.id === profileId) ?? { id: profileId, name: "Persona", initial: "?" };
 }
 
-function joinedProfileNames(profileIds: string[]) {
-  return profileIds.map(profileName).join(" y ");
+function joinedProfileNames(profileIds: string[], profiles: Profile[]) {
+  return profileIds.map((profileId) => profileName(profileId, profiles)).join(" y ");
 }
 
-function paidBy(expense: Expense) {
+function paidBy(expense: Expense, profiles: Profile[]) {
   return joinedProfileNames(
     Object.entries(expense.payments).filter(([, cents]) => cents > 0).map(([profileId]) => profileId),
+    profiles,
   );
 }
 
@@ -100,8 +101,8 @@ function movementBalanceDeltaFor(profileId: string, movement: Expense) {
   return balanceDeltaFor(profileId, movement.payments, movement.allocations);
 }
 
-function settlementDescription(movement: Expense) {
-  return `${profileName(movement.settlementFromProfileId ?? "")} → ${profileName(movement.settlementToProfileId ?? "")}`;
+function settlementDescription(movement: Expense, profiles: Profile[]) {
+  return `${profileName(movement.settlementFromProfileId ?? "", profiles)} → ${profileName(movement.settlementToProfileId ?? "", profiles)}`;
 }
 
 function signedEuros(cents: number) {
@@ -143,17 +144,18 @@ function fullMovementDate(date: string) {
 
 type MovementRowProps = {
   expense: Expense;
+  profiles: Profile[];
   onOpen: (expense: Expense) => void;
 };
 
-function MovementRow({ expense, onOpen }: MovementRowProps) {
+function MovementRow({ expense, profiles, onOpen }: MovementRowProps) {
   const isSettlement = expense.kind === "settlement";
 
   return (
     <button className={`movement-row${isSettlement ? " is-settlement" : ""}`} type="button" onClick={() => onOpen(expense)}>
       <span className="movement-main">
         <span className="category-mark" aria-hidden="true">{categoryIcon(expense.category)}</span>
-        <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · {isSettlement ? settlementDescription(expense) : `pagado por ${paidBy(expense)}`}</small></span>
+        <span><strong>{expense.name}</strong><small>{movementDate(expense.date)} · {isSettlement ? settlementDescription(expense, profiles) : `pagado por ${paidBy(expense, profiles)}`}</small></span>
       </span>
       <span className="movement-amount">{isSettlement ? formatEuros(expense.amountCents) : `−${formatEuros(expense.amountCents)}`}</span>
     </button>
@@ -162,11 +164,13 @@ function MovementRow({ expense, onOpen }: MovementRowProps) {
 
 type ExpenseDetailModalProps = {
   expense: Expense;
+  profiles: Profile[];
+  currentProfile: Profile;
   onDelete: (expense: Expense) => Promise<void>;
   onClose: () => void;
 };
 
-function ExpenseDetailModal({ expense, onDelete, onClose }: ExpenseDetailModalProps) {
+function ExpenseDetailModal({ expense, profiles, currentProfile, onDelete, onClose }: ExpenseDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -175,9 +179,9 @@ function ExpenseDetailModal({ expense, onDelete, onClose }: ExpenseDetailModalPr
   const [deleteError, setDeleteError] = useState("");
   const isSettlement = expense.kind === "settlement";
   const paymentEntries = Object.entries(expense.payments).filter(([, cents]) => cents > 0);
-  const currentBalanceImpact = movementBalanceDeltaFor(currentProfileId, expense);
-  const settlementFrom = profileFor(expense.settlementFromProfileId ?? "");
-  const settlementTo = profileFor(expense.settlementToProfileId ?? "");
+  const currentBalanceImpact = movementBalanceDeltaFor(currentProfile.id, expense);
+  const settlementFrom = profileFor(expense.settlementFromProfileId ?? "", profiles);
+  const settlementTo = profileFor(expense.settlementToProfileId ?? "", profiles);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -233,14 +237,14 @@ function ExpenseDetailModal({ expense, onDelete, onClose }: ExpenseDetailModalPr
             <section className="expense-detail-section" aria-labelledby="detail-payments-title">
               <h3 id="detail-payments-title">Pagado por</h3>
               {paymentEntries.map(([profileId, cents]) => {
-                const profile = profileFor(profileId);
+                const profile = profileFor(profileId, profiles);
                 return <div className="expense-detail-person" key={profileId}><span className="person-avatar">{profile.initial}</span><strong>{profile.name}</strong><strong>{formatEuros(cents)}</strong></div>;
               })}
             </section>
           </div>
         )}
 
-        <div className="expense-balance-impact"><span>{isSettlement ? "Cambio en el balance de Dani" : "Impacto en el balance de Dani"}</span><strong className={currentBalanceImpact >= 0 ? "is-positive" : "is-negative"}>{signedEuros(currentBalanceImpact)}</strong></div>
+        <div className="expense-balance-impact"><span>{isSettlement ? `Cambio en el balance de ${currentProfile.name}` : `Impacto en el balance de ${currentProfile.name}`}</span><strong className={currentBalanceImpact >= 0 ? "is-positive" : "is-negative"}>{signedEuros(currentBalanceImpact)}</strong></div>
 
         {confirmingDelete ? (
           <section className="delete-confirmation" aria-labelledby="delete-confirmation-title">
@@ -310,6 +314,100 @@ function SettlementConfirmModal({ proposal, saving, onConfirm, onClose }: Settle
   );
 }
 
+type HouseholdSettingKey = "name" | "people" | "budget";
+
+type HouseholdSettingsModalProps = {
+  setting: HouseholdSettingKey;
+  settings: HouseholdSettings;
+  onSave: (settings: HouseholdSettings) => Promise<void>;
+  onClose: () => void;
+};
+
+function HouseholdSettingsModal({ setting, settings, onSave, onClose }: HouseholdSettingsModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
+  const [householdName, setHouseholdName] = useState(settings.householdName);
+  const [daniName, setDaniName] = useState(settings.profileNames.dani);
+  const [anaName, setAnaName] = useState(settings.profileNames.ana);
+  const [budget, setBudget] = useState(centsToInput(settings.monthlyBudgetCents));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const budgetCents = eurosToCents(budget);
+  const valid = setting === "name"
+    ? Boolean(householdName.trim())
+    : setting === "people"
+      ? Boolean(daniName.trim() && anaName.trim())
+      : budgetCents > 0;
+  const title = setting === "name" ? "Nombre del hogar" : setting === "people" ? "Personas" : "Presupuesto mensual";
+  const eyebrow = setting === "people" ? "Quién forma parte" : setting === "budget" ? "Límite orientativo" : "Identidad del hogar";
+  const icon = setting === "name" ? <House /> : setting === "people" ? <UsersRound /> : <WalletCards />;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+      firstInputRef.current?.focus();
+      firstInputRef.current?.select();
+    }
+  }, []);
+
+  function requestClose() {
+    if (!saving) dialogRef.current?.close();
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!valid || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        householdName: householdName.trim(),
+        profileNames: { dani: daniName.trim(), ana: anaName.trim() },
+        monthlyBudgetCents: budgetCents,
+      });
+      dialogRef.current?.close();
+    } catch {
+      setError("No se han podido guardar los cambios. Comprueba la conexión e inténtalo de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <dialog ref={dialogRef} className="expense-dialog household-settings-dialog" aria-labelledby="household-settings-dialog-title" onCancel={(event) => { event.preventDefault(); requestClose(); }} onClose={onClose}>
+      <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cerrar configuración" disabled={saving} />
+      <div className="expense-dialog-content">
+        <header className="expense-dialog-header">
+          <span className="expense-dialog-icon" aria-hidden="true">{icon}</span>
+          <div><p className="eyebrow">{eyebrow}</p><h2 id="household-settings-dialog-title">{title}</h2></div>
+          <button type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar configuración" disabled={saving}><X aria-hidden="true" /></button>
+        </header>
+
+        <form className="household-settings-form" onSubmit={submit}>
+          {setting === "name" ? (
+            <label>Nombre del hogar<input ref={firstInputRef} type="text" value={householdName} onChange={(event) => setHouseholdName(event.target.value)} maxLength={40} required /><small>Aparecerá como título principal de la aplicación.</small></label>
+          ) : setting === "people" ? (
+            <div className="household-people-fields">
+              <label><span><i>{daniName.trim().charAt(0).toUpperCase() || "1"}</i>Primera persona</span><input ref={firstInputRef} type="text" value={daniName} onChange={(event) => setDaniName(event.target.value)} maxLength={40} required /></label>
+              <label><span><i>{anaName.trim().charAt(0).toUpperCase() || "2"}</i>Segunda persona</span><input type="text" value={anaName} onChange={(event) => setAnaName(event.target.value)} maxLength={40} required /></label>
+              <p>Los nombres cambiarán en toda la aplicación sin alterar los movimientos guardados.</p>
+            </div>
+          ) : (
+            <label>Presupuesto mensual<div className="settings-money-input"><input ref={firstInputRef} type="number" inputMode="decimal" min="0.01" step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} required /><span>€</span></div><small>Se utilizará para calcular la barra de presupuesto de Inicio.</small></label>
+          )}
+
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <div className="household-settings-actions">
+            <button type="button" className="secondary-action" onClick={requestClose} disabled={saving}>Cancelar</button>
+            <button type="submit" className="save-action" disabled={!valid || saving}>{saving ? "Guardando…" : "Guardar cambios"}</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+  );
+}
+
 function modeLabel(mode: ExpenseStoreMode) {
   if (mode === "synced") return "Sincronizado";
   if (mode === "connecting") return "Conectando";
@@ -319,14 +417,14 @@ function modeLabel(mode: ExpenseStoreMode) {
 
 type ProfileToolsProps = {
   mode: ExpenseStoreMode;
+  profile: Profile;
   onSignOut?: () => Promise<void>;
 };
 
-function ProfileTools({ mode, onSignOut }: ProfileToolsProps) {
+function ProfileTools({ mode, profile, onSignOut }: ProfileToolsProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const profile = profileFor(currentProfileId);
 
   useEffect(() => {
     if (!open) return;
@@ -449,12 +547,13 @@ function AccessScreen({ mode, onSignIn }: AccessScreenProps) {
 }
 
 export function HouseholdApp() {
-  const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, deleteExpense, signIn, signOut } = useExpenses();
+  const { expenses, householdSettings, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, deleteExpense, updateHouseholdSettings, signIn, signOut } = useExpenses();
   const [view, setView] = useState<"home" | "movements" | "accounts" | "more">("home");
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expenseVisible, setExpenseVisible] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
+  const [editingHouseholdSetting, setEditingHouseholdSetting] = useState<HouseholdSettingKey | null>(null);
   const [savingSettlement, setSavingSettlement] = useState(false);
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -467,6 +566,12 @@ export function HouseholdApp() {
   const expenseCloseTimerRef = useRef<number | null>(null);
   const expenseAfterCloseRef = useRef<(() => void) | null>(null);
 
+  const profiles = useMemo(() => defaultProfiles.map((profile) => {
+    const name = profile.id === "dani" ? householdSettings.profileNames.dani : householdSettings.profileNames.ana;
+    return { ...profile, name, initial: name.trim().charAt(0).toUpperCase() || profile.initial };
+  }), [householdSettings.profileNames.ana, householdSettings.profileNames.dani]);
+  const currentProfile = profileFor(currentProfileId, profiles);
+  const monthlyBudgetCents = householdSettings.monthlyBudgetCents;
   const totalCents = eurosToCents(total);
   const sortedExpenses = useMemo(
     () => [...expenses].sort((left, right) => right.date.localeCompare(left.date) || right.createdAtMillis - left.createdAtMillis),
@@ -581,12 +686,14 @@ export function HouseholdApp() {
 
   function openHome() {
     setSelectedExpense(null);
+    setEditingHouseholdSetting(null);
     setView("home");
   }
 
   function openMovements() {
     setNotice("");
     setSelectedExpense(null);
+    setEditingHouseholdSetting(null);
     setView("movements");
   }
 
@@ -594,6 +701,7 @@ export function HouseholdApp() {
     setNotice("");
     setSelectedExpense(null);
     setSettlementOpen(false);
+    setEditingHouseholdSetting(null);
     setView("accounts");
   }
 
@@ -601,6 +709,7 @@ export function HouseholdApp() {
     setNotice("");
     setSelectedExpense(null);
     setSettlementOpen(false);
+    setEditingHouseholdSetting(null);
     setView("more");
   }
 
@@ -686,6 +795,11 @@ export function HouseholdApp() {
     setNotice(expense.kind === "settlement" ? "Ajuste eliminado" : "Movimiento eliminado");
   }
 
+  async function saveHouseholdSettings(settings: HouseholdSettings) {
+    await updateHouseholdSettings(settings);
+    setNotice(mode === "synced" ? "Configuración guardada y sincronizada" : "Configuración guardada en este dispositivo");
+  }
+
   const validationMessages = [
     differenceMessage(validation.paymentDifference, "pagadores"),
   ].filter(Boolean);
@@ -697,8 +811,8 @@ export function HouseholdApp() {
           {view === "home" ? (
             <>
               <header className="topbar">
-                <div><p className="eyebrow">Buenos días, Dani</p><h1>Mi casa</h1></div>
-                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
+                <div><p className="eyebrow">Buenos días, {currentProfile.name}</p><h1>{householdSettings.householdName}</h1></div>
+                <ProfileTools mode={mode} profile={currentProfile} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content">
@@ -735,7 +849,7 @@ export function HouseholdApp() {
                   <div className="section-heading"><h2 id="recent-title">Movimientos recientes</h2><button type="button" className="text-action" onClick={openMovements}>Ver todos</button></div>
                   <div className="movement-list">
                     {sortedExpenses.length
-                      ? sortedExpenses.slice(0, 3).map((expense) => <MovementRow expense={expense} onOpen={setSelectedExpense} key={expense.id} />)
+                      ? sortedExpenses.slice(0, 3).map((expense) => <MovementRow expense={expense} profiles={profiles} onOpen={setSelectedExpense} key={expense.id} />)
                       : <p className="empty-state">Todavía no hay gastos. Añade el primero cuando quieras.</p>}
                   </div>
                 </section>
@@ -745,7 +859,7 @@ export function HouseholdApp() {
             <>
               <header className="topbar movements-header">
                 <div><p className="eyebrow">Historial del hogar</p><h1>Movimientos</h1></div>
-                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
+                <ProfileTools mode={mode} profile={currentProfile} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content movements-page">
@@ -759,7 +873,7 @@ export function HouseholdApp() {
                   <div className="section-heading"><h2 id="all-movements-title">Todos los movimientos</h2></div>
                   <div className="movement-list">
                     {sortedExpenses.length
-                      ? sortedExpenses.map((expense) => <MovementRow expense={expense} onOpen={setSelectedExpense} key={expense.id} />)
+                      ? sortedExpenses.map((expense) => <MovementRow expense={expense} profiles={profiles} onOpen={setSelectedExpense} key={expense.id} />)
                       : <p className="empty-state">Todavía no hay movimientos registrados.</p>}
                   </div>
                 </section>
@@ -769,7 +883,7 @@ export function HouseholdApp() {
             <>
               <header className="topbar accounts-header">
                 <div><p className="eyebrow">Balance compartido</p><h1>Cuentas</h1></div>
-                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
+                <ProfileTools mode={mode} profile={currentProfile} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content accounts-page">
@@ -796,7 +910,7 @@ export function HouseholdApp() {
                   <div>
                     <p className="eyebrow">{settlementProposal ? "Saldo pendiente" : "Todo en orden"}</p>
                     <h2>{settlementProposal ? <>{settlementProposal.from.name} debe pagar {formatEuros(settlementProposal.amountCents)} a {settlementProposal.to.name}</> : "Las cuentas están al día"}</h2>
-                    <p>{settlementProposal ? "Registra el pago cuando se haya realizado para dejar el balance a cero." : "No hay pagos pendientes entre Dani y Tati."}</p>
+                    <p>{settlementProposal ? "Registra el pago cuando se haya realizado para dejar el balance a cero." : `No hay pagos pendientes entre ${profiles[0].name} y ${profiles[1].name}.`}</p>
                   </div>
                   <button type="button" className="save-action accounts-settle-action" onClick={() => setSettlementOpen(true)} disabled={!settlementProposal}>Ajustar cuentas</button>
                 </section>
@@ -806,29 +920,31 @@ export function HouseholdApp() {
             <>
               <header className="topbar more-header">
                 <div><p className="eyebrow">Personaliza tu experiencia</p><h1>Más</h1></div>
-                <ProfileTools mode={mode} onSignOut={isFirebaseConfigured ? signOut : undefined} />
+                <ProfileTools mode={mode} profile={currentProfile} onSignOut={isFirebaseConfigured ? signOut : undefined} />
               </header>
 
               <div className="page-content more-page">
+                {notice ? <div className="success-notice more-notice" role="status"><Check aria-hidden="true" />{notice}</div> : null}
+                {storeError ? <div className="error-notice more-notice" role="alert">No podemos sincronizar ahora. Comprueba el acceso de Firebase.</div> : null}
                 <section className="more-section" aria-labelledby="household-settings-title">
                   <div className="more-section-heading"><div><h2 id="household-settings-title">Mi hogar</h2><p>Datos básicos y presupuesto compartido</p></div></div>
                   <div className="more-card more-settings-card">
-                    <div className="more-setting-row">
+                    <button type="button" className="more-setting-row" onClick={() => setEditingHouseholdSetting("name")}>
                       <span className="more-setting-icon" aria-hidden="true"><House /></span>
-                      <span className="more-setting-copy"><strong>Nombre del hogar</strong><small>Mi casa</small></span>
+                      <span className="more-setting-copy"><strong>Nombre del hogar</strong><small>{householdSettings.householdName}</small></span>
                       <ChevronRight className="more-chevron" aria-hidden="true" />
-                    </div>
-                    <div className="more-setting-row">
+                    </button>
+                    <button type="button" className="more-setting-row" onClick={() => setEditingHouseholdSetting("people")}>
                       <span className="more-setting-icon" aria-hidden="true"><UsersRound /></span>
-                      <span className="more-setting-copy"><strong>Personas</strong><small>Dani y Tati</small></span>
-                      <span className="more-member-avatars" aria-hidden="true"><i>D</i><i>T</i></span>
+                      <span className="more-setting-copy"><strong>Personas</strong><small>{profiles[0].name} y {profiles[1].name}</small></span>
+                      <span className="more-member-avatars" aria-hidden="true"><i>{profiles[0].initial}</i><i>{profiles[1].initial}</i></span>
                       <ChevronRight className="more-chevron" aria-hidden="true" />
-                    </div>
-                    <div className="more-setting-row">
+                    </button>
+                    <button type="button" className="more-setting-row" onClick={() => setEditingHouseholdSetting("budget")}>
                       <span className="more-setting-icon" aria-hidden="true"><WalletCards /></span>
                       <span className="more-setting-copy"><strong>Presupuesto mensual</strong><small>{formatEuros(monthlyBudgetCents)}</small></span>
                       <ChevronRight className="more-chevron" aria-hidden="true" />
-                    </div>
+                    </button>
                   </div>
                 </section>
 
@@ -859,7 +975,7 @@ export function HouseholdApp() {
         </div>
 
         <nav className="bottom-navigation" aria-label="Navegación principal">
-          <div className="nav-brand" aria-hidden="true"><span><House /></span><strong>Mi casa</strong><small>Gastos del hogar</small></div>
+          <div className="nav-brand" aria-hidden="true"><span><House /></span><strong>{householdSettings.householdName}</strong><small>Gastos del hogar</small></div>
           <button type="button" aria-current={view === "home" ? "page" : undefined} onClick={openHome}><House aria-hidden="true" />Inicio</button>
           <button type="button" aria-current={view === "movements" ? "page" : undefined} onClick={openMovements}><List aria-hidden="true" />Movimientos</button>
           <button type="button" className="nav-add" onClick={openExpense} aria-label="Añadir gasto"><Plus aria-hidden="true" /></button>
@@ -925,8 +1041,9 @@ export function HouseholdApp() {
           </section>
         </dialog>
       ) : null}
-      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} onDelete={deleteMovement} onClose={() => setSelectedExpense(null)} /> : null}
+      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} profiles={profiles} currentProfile={currentProfile} onDelete={deleteMovement} onClose={() => setSelectedExpense(null)} /> : null}
       {settlementOpen && settlementProposal ? <SettlementConfirmModal proposal={settlementProposal} saving={savingSettlement} onConfirm={confirmSettlement} onClose={() => setSettlementOpen(false)} /> : null}
+      {editingHouseholdSetting ? <HouseholdSettingsModal key={editingHouseholdSetting} setting={editingHouseholdSetting} settings={householdSettings} onSave={saveHouseholdSettings} onClose={() => setEditingHouseholdSetting(null)} /> : null}
     </main>
   );
 }

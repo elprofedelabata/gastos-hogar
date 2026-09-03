@@ -11,6 +11,11 @@ service cloud.firestore {
       allow read, create, update, delete: if isHouseholdMember(householdId);
     }
 
+    match /households/{householdId}/settings/{settingId} {
+      allow read, create, update: if isHouseholdMember(householdId);
+      allow delete: if false;
+    }
+
     match /households/{householdId}/members/{memberId} {
       allow read: if isHouseholdMember(householdId);
       allow write: if false;

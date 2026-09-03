@@ -7,6 +7,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   type DocumentData,
   type QueryDocumentSnapshot,
   type Unsubscribe,
@@ -47,6 +48,15 @@ export type SettlementDraftRecord = {
   toProfileId: string;
 };
 
+export type HouseholdSettings = {
+  householdName: string;
+  profileNames: {
+    dani: string;
+    ana: string;
+  };
+  monthlyBudgetCents: number;
+};
+
 export type ExpenseStoreMode =
   | "local"
   | "connecting"
@@ -55,7 +65,54 @@ export type ExpenseStoreMode =
   | "error";
 
 const LOCAL_STORAGE_KEY = "mi-casa-expenses-v1";
+const LOCAL_SETTINGS_KEY = "mi-casa-settings-v1";
 const householdProfileIds = ["dani", "ana"];
+
+export const defaultHouseholdSettings: HouseholdSettings = {
+  householdName: "Mi casa",
+  profileNames: { dani: "Dani", ana: "Tati" },
+  monthlyBudgetCents: 180_000,
+};
+
+function normalizedName(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 40) : fallback;
+}
+
+function normalizeHouseholdSettings(value: unknown): HouseholdSettings {
+  const data = typeof value === "object" && value ? value as Record<string, unknown> : {};
+  const rawProfileNames = typeof data.profileNames === "object" && data.profileNames
+    ? data.profileNames as Record<string, unknown>
+    : {};
+  const rawBudget = Number(data.monthlyBudgetCents);
+
+  return {
+    householdName: normalizedName(data.householdName, defaultHouseholdSettings.householdName),
+    profileNames: {
+      dani: normalizedName(rawProfileNames.dani, defaultHouseholdSettings.profileNames.dani),
+      ana: normalizedName(rawProfileNames.ana, defaultHouseholdSettings.profileNames.ana),
+    },
+    monthlyBudgetCents: Number.isSafeInteger(rawBudget) && rawBudget > 0
+      ? rawBudget
+      : defaultHouseholdSettings.monthlyBudgetCents,
+  };
+}
+
+function loadLocalSettings(): HouseholdSettings {
+  try {
+    const serialized = window.localStorage.getItem(LOCAL_SETTINGS_KEY);
+    return serialized ? normalizeHouseholdSettings(JSON.parse(serialized)) : defaultHouseholdSettings;
+  } catch {
+    return defaultHouseholdSettings;
+  }
+}
+
+function saveLocalSettings(settings: HouseholdSettings) {
+  try {
+    window.localStorage.setItem(LOCAL_SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // The app remains usable in memory when browser storage is unavailable.
+  }
+}
 
 function equalAllocations(amountCents: number): MoneyShares {
   return splitEvenly(amountCents, householdProfileIds);
@@ -152,6 +209,9 @@ export function useExpenses() {
   const [expenses, setExpenses] = useState<Expense[]>(() =>
     configured ? [] : loadLocalExpenses(),
   );
+  const [householdSettings, setHouseholdSettings] = useState<HouseholdSettings>(() =>
+    configured ? defaultHouseholdSettings : loadLocalSettings(),
+  );
   const [mode, setMode] = useState<ExpenseStoreMode>(
     configured ? "connecting" : "local",
   );
@@ -164,13 +224,17 @@ export function useExpenses() {
     if (!client) return;
 
     let stopExpenses: Unsubscribe | undefined;
+    let stopSettings: Unsubscribe | undefined;
     const stopAuth = onAuthStateChanged(client.auth, (user) => {
       stopExpenses?.();
+      stopSettings?.();
       stopExpenses = undefined;
+      stopSettings = undefined;
       setError("");
 
       if (!user) {
         setExpenses([]);
+        setHouseholdSettings(defaultHouseholdSettings);
         setMode("auth-required");
         return;
       }
@@ -179,6 +243,18 @@ export function useExpenses() {
       const expensesQuery = query(
         collection(client.database, "households", householdId, "expenses"),
         orderBy("createdAt", "desc"),
+      );
+      const settingsReference = doc(client.database, "households", householdId, "settings", "general");
+
+      stopSettings = onSnapshot(
+        settingsReference,
+        (snapshot) => setHouseholdSettings(
+          snapshot.exists() ? normalizeHouseholdSettings(snapshot.data()) : defaultHouseholdSettings,
+        ),
+        (firebaseError) => {
+          setError(firebaseError.message);
+          setMode("error");
+        },
       );
 
       stopExpenses = onSnapshot(
@@ -196,6 +272,7 @@ export function useExpenses() {
 
     return () => {
       stopExpenses?.();
+      stopSettings?.();
       stopAuth();
     };
   }, [configured]);
@@ -302,6 +379,32 @@ export function useExpenses() {
     [configured],
   );
 
+  const updateHouseholdSettings = useCallback(
+    async (nextSettings: HouseholdSettings) => {
+      const normalizedSettings = normalizeHouseholdSettings(nextSettings);
+
+      if (!configured) {
+        setHouseholdSettings(normalizedSettings);
+        saveLocalSettings(normalizedSettings);
+        return;
+      }
+
+      const client = getFirebaseClient();
+      if (!client?.auth.currentUser) throw new Error("La sesión familiar ha caducado");
+
+      await setDoc(
+        doc(client.database, "households", householdId, "settings", "general"),
+        {
+          ...normalizedSettings,
+          updatedAt: serverTimestamp(),
+          updatedBy: client.auth.currentUser.uid,
+        },
+        { merge: true },
+      );
+    },
+    [configured],
+  );
+
   const signIn = useCallback(async (email: string, password: string) => {
     const client = getFirebaseClient();
     if (!client) throw new Error("Firebase todavía no está configurado");
@@ -322,12 +425,14 @@ export function useExpenses() {
 
   return {
     expenses,
+    householdSettings,
     mode,
     error,
     isFirebaseConfigured: configured,
     addExpense,
     addSettlement,
     deleteExpense,
+    updateHouseholdSettings,
     signIn,
     signOut,
   };
