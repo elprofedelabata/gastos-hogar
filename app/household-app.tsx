@@ -15,6 +15,7 @@ import {
   Scale,
   ShoppingBasket,
   Tag,
+  Trash2,
   WandSparkles,
   X,
   Zap,
@@ -157,12 +158,17 @@ function MovementRow({ expense, onOpen }: MovementRowProps) {
 
 type ExpenseDetailModalProps = {
   expense: Expense;
+  onDelete: (expense: Expense) => Promise<void>;
   onClose: () => void;
 };
 
-function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
+function ExpenseDetailModal({ expense, onDelete, onClose }: ExpenseDetailModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelDeleteButtonRef = useRef<HTMLButtonElement>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const isSettlement = expense.kind === "settlement";
   const paymentEntries = Object.entries(expense.payments).filter(([, cents]) => cents > 0);
   const currentBalanceImpact = movementBalanceDeltaFor(currentProfileId, expense);
@@ -177,18 +183,36 @@ function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
     }
   }, []);
 
+  useEffect(() => {
+    if (confirmingDelete) cancelDeleteButtonRef.current?.focus();
+  }, [confirmingDelete]);
+
   function requestClose() {
-    dialogRef.current?.close();
+    if (!deleting) dialogRef.current?.close();
+  }
+
+  async function confirmDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await onDelete(expense);
+      dialogRef.current?.close();
+    } catch {
+      setDeleteError("No se ha podido eliminar. Comprueba la conexión e inténtalo de nuevo.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
-    <dialog ref={dialogRef} className="expense-dialog" aria-labelledby="expense-detail-title" onClose={onClose}>
-      <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cerrar detalle" />
+    <dialog ref={dialogRef} className="expense-dialog" aria-labelledby="expense-detail-title" onCancel={(event) => { if (deleting) event.preventDefault(); }} onClose={onClose}>
+      <button type="button" className="expense-dialog-backdrop" onClick={requestClose} tabIndex={-1} aria-label="Cerrar detalle" disabled={deleting} />
       <div className="expense-dialog-content">
         <header className="expense-dialog-header">
           <span className="expense-dialog-icon" aria-hidden="true">{categoryIcon(expense.category)}</span>
           <div><p className="eyebrow">{expense.category}</p><h2 id="expense-detail-title">{expense.name}</h2></div>
-          <button ref={closeButtonRef} type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar detalle"><X aria-hidden="true" /></button>
+          <button ref={closeButtonRef} type="button" className="icon-button dialog-close" onClick={requestClose} aria-label="Cerrar detalle" disabled={deleting}><X aria-hidden="true" /></button>
         </header>
 
         <p className="expense-dialog-amount">{isSettlement ? "" : "−"}{formatEuros(expense.amountCents)}</p>
@@ -213,6 +237,19 @@ function ExpenseDetailModal({ expense, onClose }: ExpenseDetailModalProps) {
         )}
 
         <div className="expense-balance-impact"><span>{isSettlement ? "Cambio en el balance de Dani" : "Impacto en el balance de Dani"}</span><strong className={currentBalanceImpact >= 0 ? "is-positive" : "is-negative"}>{signedEuros(currentBalanceImpact)}</strong></div>
+
+        {confirmingDelete ? (
+          <section className="delete-confirmation" aria-labelledby="delete-confirmation-title">
+            <div><strong id="delete-confirmation-title">¿Eliminar este movimiento?</strong><p>No se puede deshacer y las cuentas se recalcularán.</p></div>
+            {deleteError ? <p className="delete-error" role="alert">{deleteError}</p> : null}
+            <div className="delete-confirmation-actions">
+              <button ref={cancelDeleteButtonRef} type="button" className="secondary-action" onClick={() => { setConfirmingDelete(false); setDeleteError(""); }} disabled={deleting}>Conservar</button>
+              <button type="button" className="delete-confirm-action" onClick={() => void confirmDelete()} disabled={deleting}><Trash2 aria-hidden="true" />{deleting ? "Eliminando…" : "Sí, eliminar"}</button>
+            </div>
+          </section>
+        ) : (
+          <button type="button" className="delete-movement-action" onClick={() => setConfirmingDelete(true)}><Trash2 aria-hidden="true" />Eliminar movimiento</button>
+        )}
       </div>
     </dialog>
   );
@@ -408,7 +445,7 @@ function AccessScreen({ mode, onSignIn }: AccessScreenProps) {
 }
 
 export function HouseholdApp() {
-  const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, signIn, signOut } = useExpenses();
+  const { expenses, mode, error: storeError, isFirebaseConfigured, addExpense, addSettlement, deleteExpense, signIn, signOut } = useExpenses();
   const [view, setView] = useState<"home" | "movements" | "accounts">("home");
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expenseVisible, setExpenseVisible] = useState(false);
@@ -633,6 +670,11 @@ export function HouseholdApp() {
     }
   }
 
+  async function deleteMovement(expense: Expense) {
+    await deleteExpense(expense.id);
+    setNotice(expense.kind === "settlement" ? "Ajuste eliminado" : "Movimiento eliminado");
+  }
+
   const validationMessages = [
     differenceMessage(validation.paymentDifference, "pagadores"),
   ].filter(Boolean);
@@ -696,6 +738,7 @@ export function HouseholdApp() {
               </header>
 
               <div className="page-content movements-page">
+                {notice ? <div className="success-notice" role="status"><Check aria-hidden="true" />{notice}</div> : null}
                 {storeError ? <div className="error-notice" role="alert">No podemos sincronizar ahora. Comprueba el acceso de Firebase.</div> : null}
                 <section className="movements-summary" aria-label="Resumen de movimientos">
                   <div><p className="card-label">Gastos registrados</p><strong>{formatEuros(expenseMovements.reduce((sum, expense) => sum + expense.amountCents, 0))}</strong></div>
@@ -818,7 +861,7 @@ export function HouseholdApp() {
           </section>
         </dialog>
       ) : null}
-      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} onClose={() => setSelectedExpense(null)} /> : null}
+      {selectedExpense ? <ExpenseDetailModal expense={selectedExpense} onDelete={deleteMovement} onClose={() => setSelectedExpense(null)} /> : null}
       {settlementOpen && settlementProposal ? <SettlementConfirmModal proposal={settlementProposal} saving={savingSettlement} onConfirm={confirmSettlement} onClose={() => setSettlementOpen(false)} /> : null}
     </main>
   );

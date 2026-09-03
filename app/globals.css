@@ -12,6 +12,7 @@
   --accent-ink: #ffffff;
   --positive: #147a58;
   --negative: #b4453b;
+  --negative-action: #a33d34;
   --shadow: rgba(24, 53, 43, 0.12);
 }
 
@@ -849,6 +850,88 @@ h2 {
   border-radius: 16px;
   background: var(--surface-soft);
   font-size: 0.8rem;
+}
+
+.delete-movement-action,
+.delete-confirm-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border-radius: 15px;
+  color: var(--negative);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.delete-movement-action {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid color-mix(in srgb, var(--negative) 28%, var(--line));
+  background: transparent;
+}
+
+.delete-movement-action:hover {
+  background: color-mix(in srgb, var(--negative) 8%, transparent);
+}
+
+.delete-movement-action svg,
+.delete-confirm-action svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.delete-confirmation {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--negative) 28%, var(--line));
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--negative) 7%, var(--surface));
+}
+
+.delete-confirmation > div:first-child > strong {
+  font-size: 0.86rem;
+}
+
+.delete-confirmation > div:first-child > p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.delete-confirmation-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.delete-confirmation-actions .secondary-action,
+.delete-confirm-action {
+  min-height: 44px;
+  border-radius: 14px;
+}
+
+.delete-confirm-action {
+  padding: 0 14px;
+  border: 1px solid var(--negative-action);
+  color: #fff;
+  background: var(--negative-action);
+}
+
+.delete-error {
+  margin: 10px 0 0;
+  color: var(--negative);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.delete-movement-action:disabled,
+.delete-confirm-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .settlement-transfer {

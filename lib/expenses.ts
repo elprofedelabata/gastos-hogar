@@ -1,6 +1,8 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
+  doc,
   onSnapshot,
   orderBy,
   query,
@@ -279,6 +281,27 @@ export function useExpenses() {
     [configured],
   );
 
+  const deleteExpense = useCallback(
+    async (expenseId: string) => {
+      if (!configured) {
+        setExpenses((current) => {
+          const next = current.filter((expense) => expense.id !== expenseId);
+          saveLocalExpenses(next);
+          return next;
+        });
+        return;
+      }
+
+      const client = getFirebaseClient();
+      if (!client?.auth.currentUser) throw new Error("La sesión familiar ha caducado");
+
+      await deleteDoc(
+        doc(client.database, "households", householdId, "expenses", expenseId),
+      );
+    },
+    [configured],
+  );
+
   const signIn = useCallback(async (email: string, password: string) => {
     const client = getFirebaseClient();
     if (!client) throw new Error("Firebase todavía no está configurado");
@@ -304,6 +327,7 @@ export function useExpenses() {
     isFirebaseConfigured: configured,
     addExpense,
     addSettlement,
+    deleteExpense,
     signIn,
     signOut,
   };
