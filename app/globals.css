@@ -759,8 +759,7 @@ h2 {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
-.more-setting-icon,
-.recurring-preview-icon {
+.more-setting-icon {
   display: grid;
   place-items: center;
   color: var(--accent);
@@ -815,45 +814,6 @@ h2 {
 
 .more-member-avatars i:last-child {
   background: #4e8878;
-}
-
-.recurring-preview {
-  display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-  gap: 12px;
-  padding: 16px;
-}
-
-.recurring-preview-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 15px;
-}
-
-.recurring-preview strong {
-  font-size: 0.86rem;
-}
-
-.recurring-preview p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 0.73rem;
-  line-height: 1.45;
-}
-
-.more-add-action {
-  display: flex;
-  min-height: 44px;
-  grid-column: 1 / -1;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 2px;
-  border-radius: 14px;
-  color: var(--accent-ink);
-  background: var(--accent);
-  font-size: 0.79rem;
-  font-weight: 650;
 }
 
 .categories-preview {
@@ -2065,11 +2025,16 @@ h2 {
   .more-page {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
     gap: 20px;
   }
 
-  .more-section:first-of-type {
+  .more-section {
     grid-column: 1 / -1;
+  }
+
+  .category-preview-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .more-section + .more-section {

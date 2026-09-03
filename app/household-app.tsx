@@ -13,7 +13,6 @@ import {
   Menu,
   Plus,
   ReceiptText,
-  Repeat2,
   Scale,
   ShoppingBasket,
   Tag,
@@ -945,15 +944,6 @@ export function HouseholdApp() {
                       <span className="more-setting-copy"><strong>Presupuesto mensual</strong><small>{formatEuros(monthlyBudgetCents)}</small></span>
                       <ChevronRight className="more-chevron" aria-hidden="true" />
                     </button>
-                  </div>
-                </section>
-
-                <section className="more-section" aria-labelledby="recurring-title">
-                  <div className="more-section-heading"><div><h2 id="recurring-title">Gastos recurrentes</h2><p>Organiza los pagos que se repiten</p></div></div>
-                  <div className="more-card recurring-preview">
-                    <span className="recurring-preview-icon" aria-hidden="true"><Repeat2 /></span>
-                    <div><strong>Tus gastos habituales</strong><p>Alquiler, suministros o suscripciones, listos para repetir cada mes.</p></div>
-                    <span className="more-add-action" aria-hidden="true"><Plus />Añadir recurrente</span>
                   </div>
                 </section>
 
